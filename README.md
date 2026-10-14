@@ -139,12 +139,11 @@ Each skill directory contains:
 
 Every capability claim is traceable to the app's source code. The skills were authored by one AI agent per repo (DeepSeek V4.1 Flash, max reasoning effort, via [OpenCode](https://opencode.ai)) against a pinned commit, then machine-audited: every cited file path resolved, every `Sources & evidence` SHA matched the audited tree, and headline claims (PSD read/write, XLSX function parity, PPTX round-trip, DXF/DWG, effect counts, MCP surfaces) were spot-checked against code. No capability is documented without a file:line pointer; uncertainty is labeled `uncertain`, never guessed.
 
-The full method, including the regeneration recipe, is in [`MAINTENANCE.md`](MAINTENANCE.md) and [`brief/artcraft-skill-brief.md`](brief/artcraft-skill-brief.md).
+The full method, including the regeneration recipe, lives alongside the skill sources (not in this repo).
 
 ## Provenance & maintenance
 
 - Apps and their repos move fast (early-alpha, frequent releases; installed bundles often lag repo HEAD). Each skill names the exact commit it describes and carries a *verify against your installed version* note.
-- Regenerate all 13 skills against new HEADs with [`MAINTENANCE.md`](MAINTENANCE.md).
 
 ## Related
 
