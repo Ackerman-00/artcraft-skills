@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Install the ArtCraft agent skills into an agent skills directory.
+# Usage: ./install.sh [--force] [--claude] [--opencode]
+#   default target ~/.agents/skills/ — scanned natively by OpenAI Codex,
+#   ChatGPT desktop, ZCode, Devin, CommandCode and other agentskills.io-standard agents
+#   --claude targets ~/.claude/skills/ for Claude Code
+#   --opencode targets ~/.config/opencode/skills/ for OpenCode
+set -euo pipefail
+cd "$(dirname "$0")"
+
+dest="${HOME}/.agents/skills"
+skills="photocraft lightcraft vectorcraft figcraft designcraft wordcraft deckcraft gridcraft pdfcraft effectcraft filmcraft soundcraft cadcraft"
+force=false
+for arg in "$@"; do
+  case "$arg" in
+    --force)    force=true ;;
+    --claude)   dest="${HOME}/.claude/skills" ;;
+    --opencode) dest="${HOME}/.config/opencode/skills" ;;
+    *) echo "unknown flag: $arg (usage: $0 [--force] [--claude] [--opencode])" >&2; exit 1 ;;
+  esac
+done
+
+mkdir -p "$dest"
+installed=0; skipped=0
+for s in $skills; do
+  case "$s" in ''|*[!a-z]*) echo "refusing bad skill name: $s" >&2; exit 1;; esac
+  if [ -e "$dest/$s" ] && [ "$force" = false ]; then
+    echo "skip  $s (already installed — use --force to overwrite)"
+    skipped=$((skipped+1))
+  else
+    rm -rf "$dest/$s"
+    cp -R "$s" "$dest/$s"
+    echo "install  $s -> $dest/$s"
+    installed=$((installed+1))
+  fi
+done
+echo "done: $installed installed, $skipped skipped. Restart your agent session to pick them up."
