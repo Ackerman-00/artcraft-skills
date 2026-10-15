@@ -116,21 +116,25 @@ Skills trigger automatically when you mention an app or its file formats (`.psd`
 
 ## The skills
 
-| Skill | App | Clean-room target | Version covered | Agent surface |
-|---|---|---|---|---|
-| `photocraft` | PhotoCraft | Adobe Photoshop | 0.8.2 @ `7250e6e` | CLI · MCP · control channel |
-| `lightcraft` | LightCraft | Adobe Lightroom | 0.8.0 @ `16dbb90` | `lightcraft-cli` · MCP · control channel |
-| `vectorcraft` | VectorCraft | Adobe Illustrator | 0.11.0 @ `0a33cff` | CLI · MCP · control channel |
-| `figcraft` | FigCraft | Figma | 0.6.0 @ `833f0d2` | CLI · MCP (`crates/mcp`) · control channel |
-| `designcraft` | DesignCraft | Adobe InDesign | 0.8.0 @ `11a51d5` | CLI · MCP · control channel |
-| `wordcraft` | WordCraft | Microsoft Word | 0.7.0 @ `fc41918` | command families · CLI · MCP · control channel |
-| `deckcraft` | DeckCraft | Microsoft PowerPoint | 0.7.0 @ `d78e657` | `deckcraft-cli` · MCP · JSON control channel |
-| `gridcraft` | GridCraft | Microsoft Excel | 0.7.0 @ `d9d09f0` | `gridcraft-cli` (`check` calc-oracle) · MCP · control channel |
-| `pdfcraft` | PdfCraft | Adobe Acrobat | 0.8.0 @ `9931329` | CLI · MCP · batch automation |
-| `effectcraft` | EffectCraft | Adobe After Effects | 0.9.2 @ `549e9d8` | CLI · MCP · render queue |
-| `filmcraft` | FilmCraft | Adobe Premiere Pro | 0.7.2 @ `cee1feb` | CLI · MCP · control channel |
-| `soundcraft` | SoundCraft | Avid Pro Tools | 0.7.0 @ `3a28a65` | `soundcraft-cli` · MCP (confinement roots) · control channel |
-| `cadcraft` | CADCraft | Autodesk AutoCAD | 0.7.0 @ `fc4e983` | command line · MCP (`crates/mcp`) |
+One skill per app across the whole Craft App Suite — the same from-scratch Rust tools the [ArtCraft Launcher](https://github.com/storytold/craft-launcher) installs:
+
+| App | What it's for | Skill | Skill based on | Code | Learn more |
+|---|---|---|---|---|---|
+| <img src="assets/icons/photocraft.png" width="32" alt="PhotoCraft icon" align="absmiddle"> **PhotoCraft** | Image editing: layers, masks, type and real PSD files | [`photocraft`](photocraft) | 0.8.2 @ `7250e6e` | [GitHub](https://github.com/storytold/photocraft) | [Website](https://getartcraft.com/apps/photocraft) |
+| <img src="assets/icons/lightcraft.png" width="32" alt="LightCraft icon" align="absmiddle"> **LightCraft** | Photo library and raw development | [`lightcraft`](lightcraft) | 0.8.0 @ `16dbb90` | [GitHub](https://github.com/storytold/lightcraft) | [Website](https://getartcraft.com/apps/lightcraft) |
+| <img src="assets/icons/vectorcraft.png" width="32" alt="VectorCraft icon" align="absmiddle"> **VectorCraft** | Vector illustration | [`vectorcraft`](vectorcraft) | 0.11.0 @ `0a33cff` | [GitHub](https://github.com/storytold/vectorcraft) | [Website](https://getartcraft.com/apps/vectorcraft) |
+| <img src="assets/icons/figcraft.png" width="32" alt="FigCraft icon" align="absmiddle"> **FigCraft** | Interface design and prototyping | [`figcraft`](figcraft) | 0.6.0 @ `833f0d2` | [GitHub](https://github.com/storytold/figcraft) | [Website](https://getartcraft.com/apps/figcraft) |
+| <img src="assets/icons/designcraft.png" width="32" alt="DesignCraft icon" align="absmiddle"> **DesignCraft** | Page layout and publishing | [`designcraft`](designcraft) | 0.8.0 @ `11a51d5` | [GitHub](https://github.com/storytold/designcraft) | [Website](https://getartcraft.com/apps/designcraft) |
+| <img src="assets/icons/wordcraft.png" width="32" alt="WordCraft icon" align="absmiddle"> **WordCraft** | Word processing and documents | [`wordcraft`](wordcraft) | 0.7.0 @ `fc41918` | [GitHub](https://github.com/storytold/wordcraft) | [Website](https://getartcraft.com/apps/wordcraft) |
+| <img src="assets/icons/deckcraft.png" width="32" alt="DeckCraft icon" align="absmiddle"> **DeckCraft** | Presentations and slide decks | [`deckcraft`](deckcraft) | 0.7.0 @ `d78e657` | [GitHub](https://github.com/storytold/deckcraft) | [Website](https://getartcraft.com/apps/deckcraft) |
+| <img src="assets/icons/gridcraft.png" width="32" alt="GridCraft icon" align="absmiddle"> **GridCraft** | Spreadsheets and data | [`gridcraft`](gridcraft) | 0.7.0 @ `d9d09f0` | [GitHub](https://github.com/storytold/gridcraft) | [Website](https://getartcraft.com/apps/gridcraft) |
+| <img src="assets/icons/pdfcraft.png" width="32" alt="PdfCraft icon" align="absmiddle"> **PdfCraft** | Reading, organizing and protecting PDFs | [`pdfcraft`](pdfcraft) | 0.8.0 @ `9931329` | [GitHub](https://github.com/storytold/pdfcraft) | [Website](https://getartcraft.com/apps/pdfcraft) |
+| <img src="assets/icons/effectcraft.png" width="32" alt="EffectCraft icon" align="absmiddle"> **EffectCraft** | Motion graphics and visual effects | [`effectcraft`](effectcraft) | 0.9.2 @ `549e9d8` | [GitHub](https://github.com/storytold/effectcraft) | [Website](https://getartcraft.com/apps/effectcraft) |
+| <img src="assets/icons/filmcraft.png" width="32" alt="FilmCraft icon" align="absmiddle"> **FilmCraft** | Video editing, color and sound | [`filmcraft`](filmcraft) | 0.7.2 @ `cee1feb` | [GitHub](https://github.com/storytold/filmcraft) | [Website](https://getartcraft.com/apps/filmcraft) |
+| <img src="assets/icons/soundcraft.png" width="32" alt="SoundCraft icon" align="absmiddle"> **SoundCraft** | Audio recording and editing | [`soundcraft`](soundcraft) | 0.7.0 @ `3a28a65` | [GitHub](https://github.com/storytold/soundcraft) | [Website](https://getartcraft.com/apps/soundcraft) |
+| <img src="assets/icons/cadcraft.png" width="32" alt="CADCraft icon" align="absmiddle"> **CADCraft** | Computer-aided design | [`cadcraft`](cadcraft) | 0.7.0 @ `fc4e983` | [GitHub](https://github.com/storytold/cadcraft) | [Website](https://getartcraft.com/apps/cadcraft) |
+
+*Skill based on* names the app release and commit each skill was written and verified against; the apps are early-alpha and move fast, so every skill also carries a *verify against your installed version* note.
 
 Each skill directory contains:
 
