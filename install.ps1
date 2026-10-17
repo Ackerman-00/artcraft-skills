@@ -1,15 +1,19 @@
 # Install the ArtCraft agent skills into an agent skills directory.
-# Usage: .\install.ps1 [-Force] [-Claude] [-OpenCode]
+# Usage: .\install.ps1 [-Force] [-Claude] [-OpenCode] [-Gemini] [-Antigravity]
 #   default target $HOME\.agents\skills\ — scanned natively by OpenAI Codex,
-#   ChatGPT desktop, ZCode, Devin, CommandCode on Windows; -Claude targets
-#   $HOME\.claude\skills\ for Claude Code; -OpenCode targets
-#   $HOME\.config\opencode\skills\ for OpenCode. PowerShell 5.1+, no modules.
-param([switch]$Force, [switch]$Claude, [switch]$OpenCode)
+#   ChatGPT desktop, ZCode, Devin, CommandCode, Gemini CLI on Windows; -Claude
+#   targets $HOME\.claude\skills\ for Claude Code; -OpenCode targets
+#   $HOME\.config\opencode\skills\ for OpenCode; -Gemini targets
+#   $HOME\.gemini\skills\ for Gemini CLI; -Antigravity targets
+#   $HOME\.gemini\config\skills\ for Google Antigravity. PowerShell 5.1+, no modules.
+param([switch]$Force, [switch]$Claude, [switch]$OpenCode, [switch]$Gemini, [switch]$Antigravity)
 
 $ErrorActionPreference = 'Stop'
 $dest = Join-Path $HOME '.agents\skills'
-if ($Claude)   { $dest = Join-Path $HOME '.claude\skills' }
-if ($OpenCode) { $dest = Join-Path $HOME '.config\opencode\skills' }
+if ($Claude)     { $dest = Join-Path $HOME '.claude\skills' }
+if ($OpenCode)   { $dest = Join-Path $HOME '.config\opencode\skills' }
+if ($Gemini)     { $dest = Join-Path $HOME '.gemini\skills' }
+if ($Antigravity){ $dest = Join-Path $HOME '.gemini\config\skills' }
 $skills = 'photocraft lightcraft vectorcraft figcraft designcraft wordcraft deckcraft gridcraft pdfcraft effectcraft filmcraft soundcraft cadcraft' -split ' '
 
 New-Item -ItemType Directory -Force -Path $dest | Out-Null

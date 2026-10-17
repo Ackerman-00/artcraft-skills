@@ -1,6 +1,6 @@
 # ArtCraft Agent Skills
 
-**Thirteen evidence-verified agent skills — plain `SKILL.md` files following the [agentskills.io](https://agentskills.io) standard — that teach AI coding agents to drive the [ArtCraft](https://getartcraft.com) creative suite. Built for Claude Code, OpenAI Codex & ChatGPT desktop, OpenCode, Devin, CommandCode and ZCode.**
+**Thirteen evidence-verified agent skills — plain `SKILL.md` files following the [agentskills.io](https://agentskills.io) standard — that teach AI coding agents to drive the [ArtCraft](https://getartcraft.com) creative suite. Built for Claude Code, OpenAI Codex & ChatGPT desktop, OpenCode, Devin, CommandCode, ZCode, Google Antigravity and Gemini CLI.**
 
 <p align="center">
   <img src="assets/app-logos-marquee.svg" alt="The thirteen ArtCraft apps scrolling past: PhotoCraft, LightCraft, VectorCraft, FigCraft, DesignCraft, WordCraft, DeckCraft, GridCraft, PdfCraft, EffectCraft, FilmCraft, SoundCraft and CADCraft" width="100%">
@@ -10,7 +10,7 @@ ArtCraft is the open-source, pure-Rust, clean-room creative suite from the [`sto
 
 Each skill teaches an AI coding agent **what one app can really do, what it cannot do yet, and how to drive it correctly** — through the app's first-class automation surface (headless CLI, [MCP](https://modelcontextprotocol.io) (Model Context Protocol) server, localhost JSON control channel) rather than blind GUI automation. Mention an app or one of its file formats — `.psd`, `.pptx`, `.xlsx`, `.docx`, `.dxf` — and the matching skill triggers.
 
-**Works with:** any agent that implements the [agentskills.io](https://agentskills.io) `SKILL.md` standard — Claude Code, OpenAI Codex & ChatGPT desktop, OpenCode, Devin, CommandCode, ZCode and more. One command per agent:
+**Works with:** any agent that implements the [agentskills.io](https://agentskills.io) `SKILL.md` standard — Claude Code, OpenAI Codex & ChatGPT desktop, OpenCode, Devin, CommandCode, ZCode, Gemini CLI, Google Antigravity and more. One command per agent:
 
 | Agent | Install | Skill directory it scans |
 |---|---|---|
@@ -20,8 +20,10 @@ Each skill teaches an AI coding agent **what one app can really do, what it cann
 | CommandCode | `bash install.sh` | `~/.agents/skills/` (also `~/.commandcode/skills/`) |
 | Claude Code | `bash install.sh --claude` | `~/.claude/skills/` |
 | OpenCode | `bash install.sh --opencode` | `~/.config/opencode/skills/` |
+| Gemini CLI | `bash install.sh --gemini` | `~/.gemini/skills/` (also `~/.agents/skills/`) |
+| Google Antigravity | `bash install.sh --antigravity` | `~/.gemini/config/skills/` |
 | claude.ai · Claude Desktop | zip upload (Settings → Capabilities → Skills) | per-chat upload |
-| Windows (any of the above) | `.\install.ps1` (`-Claude`, `-OpenCode`) | `%USERPROFILE%\` equivalents |
+| Windows (any of the above) | `.\install.ps1` (`-Claude`, `-OpenCode`, `-Gemini`, `-Antigravity`) | `%USERPROFILE%\` equivalents |
 
 The SKILL.md files are plain Markdown + shell, so any agent that can read files can use them. Full per-agent options are under [Install](#install) below.
 
@@ -40,15 +42,17 @@ Copy this into your agent (Claude Code, Codex, ChatGPT, OpenCode, Devin, Command
 
 ```text
 Clone https://github.com/midasmatterhorn/artcraft-skills.git into a temporary directory, then install the skills for the agent I'm using now:
-- Windows: run `.\install.ps1`; if you are Claude Code use `.\install.ps1 -Claude`, if you are OpenCode use `.\install.ps1 -OpenCode`, and add `-Force` to overwrite existing installs.
+- Windows: run `.\install.ps1`; if you are Claude Code use `.\install.ps1 -Claude`, if you are OpenCode use `.\install.ps1 -OpenCode`, if you are Gemini CLI use `.\install.ps1 -Gemini`, if you are Antigravity use `.\install.ps1 -Antigravity`, and add `-Force` to overwrite existing installs.
 - OpenCode (macOS/Linux): run `bash install.sh --opencode`, which installs into ~/.config/opencode/skills/.
 - Claude Code (macOS/Linux): run `bash install.sh --claude`, which installs into ~/.claude/skills/.
+- Gemini CLI (macOS/Linux): the default install works — Gemini CLI scans ~/.agents/skills/ too; use `bash install.sh --gemini` to scope it to ~/.gemini/skills/ instead.
+- Google Antigravity (macOS/Linux): run `bash install.sh --antigravity`, which installs into ~/.gemini/config/skills/, Antigravity's global skills directory.
 - Everyone else (OpenAI Codex, ChatGPT desktop, ZCode, Devin, CommandCode, or any other SKILL.md-standard agent): run `bash install.sh`; the default target is ~/.agents/skills/, which those agents scan natively.
 Verify the install: all 13 skill directories must be present under the target directory, each containing SKILL.md and agents/openai.yaml. Print the target directory you used.
 Then tell me to restart my agent session so the new skills are discovered.
 ```
 
-Works as-is in Claude Code, Codex, OpenCode, Devin, CommandCode and ZCode; any SKILL.md-standard agent can follow it too.
+Works as-is in Claude Code, Codex, OpenCode, Devin, CommandCode, ZCode, Gemini CLI and Antigravity; any SKILL.md-standard agent can follow it too.
 
 ### Standard agents (Codex, ChatGPT, ZCode, Devin, CommandCode)
 
@@ -56,7 +60,7 @@ Works as-is in Claude Code, Codex, OpenCode, Devin, CommandCode and ZCode; any S
 bash install.sh            # default target: ~/.agents/skills/
 ```
 
-`~/.agents/skills/` is the shared directory that OpenAI Codex, ChatGPT desktop, ZCode, Devin and CommandCode all scan natively (ZCode also reads `~/.zcode/skills/`; CommandCode also reads `~/.commandcode/skills/`). Every skill ships an `agents/openai.yaml` sidecar so the Codex/ChatGPT UI shows the proper display name and description. CommandCode users can alternatively install natively with `cmd skills add midasmatterhorn/artcraft-skills --global`.
+`~/.agents/skills/` is the shared directory that OpenAI Codex, ChatGPT desktop, ZCode, Devin, CommandCode and Gemini CLI all scan natively (ZCode also reads `~/.zcode/skills/`; CommandCode also reads `~/.commandcode/skills/`; Gemini CLI treats `~/.agents/skills/` as an alias for `~/.gemini/skills/` and prefers the alias within that tier). Every skill ships an `agents/openai.yaml` sidecar so the Codex/ChatGPT UI shows the proper display name and description. CommandCode users can alternatively install natively with `cmd skills add midasmatterhorn/artcraft-skills --global`.
 
 Invoke a skill explicitly with `$photocraft` (or `$wordcraft`, …), or let implicit triggering fire when you mention an app or an extension like `.psd`, `.pptx`, `.xlsx`, `.docx` or `.dxf`. If a freshly installed skill doesn't show up, restart your agent.
 
@@ -86,6 +90,30 @@ ln -s "$PWD/photocraft" .opencode/skills/photocraft   # repeat for each skill
 
 As with Claude Code, symlinks mean `git pull` keeps the installed skills current.
 
+### Gemini CLI
+
+```sh
+bash install.sh --gemini   # copies all 13 skills into ~/.gemini/skills/
+```
+
+`--gemini` targets Gemini CLI's user-scoped `~/.gemini/skills/` directory. Gemini CLI also scans the shared `~/.agents/skills/` (preferring it within the same tier), so the default install already works — use `--gemini` only when you want the skills scoped to Gemini alone. For a single project, symlink into that project's `.gemini/skills/` (or its `.agents/skills/` alias):
+
+```sh
+ln -s "$PWD/photocraft" .gemini/skills/photocraft   # repeat for each skill
+```
+
+### Google Antigravity
+
+```sh
+bash install.sh --antigravity   # copies all 13 skills into ~/.gemini/config/skills/
+```
+
+`--antigravity` targets Antigravity's global skills directory `~/.gemini/config/skills/`, discovered across the Antigravity app, IDE and CLI. For a single project, symlink into the repo's `.agents/skills/` directory, which Antigravity scans at workspace level:
+
+```sh
+ln -s "$PWD/photocraft" .agents/skills/photocraft   # repeat for each skill
+```
+
 ### claude.ai / Claude Desktop
 
 Zip a skill folder and upload it via **Settings → Capabilities → Skills**:
@@ -102,9 +130,9 @@ Native Windows: after cloning, run the PowerShell installer (`install.ps1`):
 powershell -ExecutionPolicy Bypass -File .\install.ps1   # or .\install.ps1 in an existing PowerShell session
 ```
 
-`-Claude` targets Claude Code's `%USERPROFILE%\.claude\skills` and `-OpenCode` targets OpenCode's `%USERPROFILE%\.config\opencode\skills`; the default is `%USERPROFILE%\.agents\skills` (scanned natively by Codex, ChatGPT desktop, ZCode, Devin and CommandCode on Windows), and `-Force` overwrites existing installs.
+`-Claude` targets Claude Code's `%USERPROFILE%\.claude\skills`, `-OpenCode` targets OpenCode's `%USERPROFILE%\.config\opencode\skills`, `-Gemini` targets Gemini CLI's `%USERPROFILE%\.gemini\skills` and `-Antigravity` targets Antigravity's `%USERPROFILE%\.gemini\config\skills`; the default is `%USERPROFILE%\.agents\skills` (scanned natively by Codex, ChatGPT desktop, ZCode, Devin, CommandCode and Gemini CLI on Windows), and `-Force` overwrites existing installs.
 
-On WSL or Git Bash the bash installer works unchanged (`bash install.sh`, `--claude`, `--opencode`) — no need for `install.ps1` there. The skill folders are plain Markdown; only the paths inside the docs are written macOS-first (see the Platforms note below).
+On WSL or Git Bash the bash installer works unchanged (`bash install.sh`, `--claude`, `--opencode`, `--gemini`, `--antigravity`) — no need for `install.ps1` there. The skill folders are plain Markdown; only the paths inside the docs are written macOS-first (see the Platforms note below).
 
 ### Manual / other agents
 

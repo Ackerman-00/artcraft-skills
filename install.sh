@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # Install the ArtCraft agent skills into an agent skills directory.
-# Usage: ./install.sh [--force] [--claude] [--opencode]
+# Usage: ./install.sh [--force] [--claude] [--opencode] [--gemini] [--antigravity]
 #   default target ~/.agents/skills/ — scanned natively by OpenAI Codex,
-#   ChatGPT desktop, ZCode, Devin, CommandCode and other agentskills.io-standard agents
+#   ChatGPT desktop, ZCode, Devin, CommandCode, Gemini CLI and other
+#   agentskills.io-standard agents
 #   --claude targets ~/.claude/skills/ for Claude Code
 #   --opencode targets ~/.config/opencode/skills/ for OpenCode
+#   --gemini targets ~/.gemini/skills/ for Gemini CLI
+#   --antigravity targets ~/.gemini/config/skills/ for Google Antigravity
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -14,9 +17,11 @@ force=false
 for arg in "$@"; do
   case "$arg" in
     --force)    force=true ;;
-    --claude)   dest="${HOME}/.claude/skills" ;;
-    --opencode) dest="${HOME}/.config/opencode/skills" ;;
-    *) echo "unknown flag: $arg (usage: $0 [--force] [--claude] [--opencode])" >&2; exit 1 ;;
+    --claude)     dest="${HOME}/.claude/skills" ;;
+    --opencode)   dest="${HOME}/.config/opencode/skills" ;;
+    --gemini)     dest="${HOME}/.gemini/skills" ;;
+    --antigravity) dest="${HOME}/.gemini/config/skills" ;;
+    *) echo "unknown flag: $arg (usage: $0 [--force] [--claude] [--opencode] [--gemini] [--antigravity])" >&2; exit 1 ;;
   esac
 done
 
