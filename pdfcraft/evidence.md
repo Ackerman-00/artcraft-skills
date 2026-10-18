@@ -1,55 +1,56 @@
-# PdfCraft evidence table (orchestrator review copy)
+# PdfCraft — evidence table
 
-Repo: storytold/pdfcraft · HEAD inspected: `9931329b9fae0b05373b4dc3ac7c58541f0891a4`
-("Release 0.8.0", 2026-10-14) · installed app on the authoring Mac: `/Applications/PdfCraft.app` v0.7.1.
-
-Tier key: **implemented** = code path exists and is wired into UI/CLI/tool table;
-**partial** = exists but visibly incomplete (scope stated); **claimed** = README/doc statement not
-verifiable from code; **absent** = documented gap / no code path.
+Inspected commit `645016addcfb9078c557f0189559ab47cdcee057` (tag `v0.9.0`, 2026-10-17).
+Installed app `/Applications/PdfCraft.app` reports version 0.9.0 and
+`PdfCraftBuildCommit = 645016addcfb9078c557f0189559ab47cdcee057`, so the bundle and checkout match.
+Tier: **implemented** = wired into UI/CLI and code path present; **partial** = present but visibly
+incomplete or limited; **claimed** = stated in README/docs but not confirmed in code.
 
 | # | Capability claim | Evidence | Tier |
 |---|---|---|---|
-| 1 | Renders PDFs (tiled, CPU raster), layouts single/continuous/two-up, rotation, Read mode, themes | `crates/render`; `docs/architecture.md` §Rendering and text; `apps/pdfcraft/src/main.rs:6-11` | implemented (renderer borrowed from vendored `hayro`; fidelity unmeasured — `docs/gaps.md` gap 2) |
-| 2 | Reading-order text extraction (columns, vertical CJK) + find with page/line rects | `text_extract`/`text_find` in `crates/automation/src/tools.rs`; `pdfcraft-cli text` `apps/pdfcraft-cli/src/main.rs:315` | implemented |
-| 3 | Page ops: rotate/delete/move/duplicate/replace/insert/boxes/labels | tools `page_*` `crates/automation/src/tools.rs:190-313,791-812`; `crates/organize` | implemented |
-| 4 | Combine (bookmark per file), extract, split (N/before/bookmarks/size) | `Session::combine/extract/split` used in `apps/pdfcraft-cli/src/main.rs:479-525`; tools `doc_combine`, `page_extract`, `doc_split` | implemented |
-| 5 | Create PDF from blank/images/TXT (PNG/JPEG/TIFF/GIF/BMP/JP2/J2K/JPX, .txt/.text) | `crates/create/src/lib.rs:488` (`CONVERTIBLE`), `doc_create` tool | implemented |
-| 6 | Full comment markup set + replies/status/lock/summarize, XFDF/FDF import-export | `crates/annot`, `crates/automation/src/comments.rs`, `comment_add` schema `tools.rs:618-655`; `crates/xfdf/src/lib.rs:49-59` | implemented |
-| 7 | Forms: list/fill/add/properties/tab order/detection/data exchange; sandboxed Acrobat JS; XFA layout | `crates/forms`, `crates/js`, `crates/xfa`; `form_*` tools; `js_run` schema (`tools.rs:967`) | implemented (XFA + JS object model partial — `docs/gaps.md` gap 15) |
-| 8 | Fill & Sign (text/marks/date/signature image incl. photo-scan) | `fill_sign_add` `tools.rs:1085-1107`; `crates/ui-egui/src/fill_sign.rs`; `crates/engine/src/signature_image.rs`, `signature_scan.rs` | implemented |
-| 9 | Passwords: standard security handler R2–R6 (RC4-40/128, AES-128/256, SASLprep) | `crates/crypt`; `doc_protect`/`doc_unprotect` `tools.rs:767-790` | implemented |
-| 10 | Redaction with post-apply verification pass; sanitize/remove hidden info | `crates/redact/src/lib.rs:12`; tools `redact_mark`/`redact_apply`/`doc_remove_hidden` | implemented |
-| 11 | Faux-redaction audit; CLI fails on findings | `crates/audit`; `apps/pdfcraft-cli/src/main.rs:158-179` (`audit`) | implemented |
-| 12 | Signing: .p12/.pfx, macOS Keychain, Windows store; PAdES B-B; certification; validation | `crates/sign`; tools `sign_document`, `sign_id_create`, `sign_keychain_ids`, `sign_windows_ids`, `sign_list` | implemented (no PKCS#11/timestamps/online revocation — `docs/gaps.md` gap 10) |
-| 13 | OCR to searchable image; batch; camera enhance | `crates/ocr`; tools `ocr_recognize`, `ocr_recognize_files`, `page_enhance_camera` (`tools.rs:200,1043-1070`) | partial: `language` enum is `["en"]` (unaccented Latin only — gap 7); needs models (`crates/ocr/src/lib.rs:57-66`) |
-| 14 | Print with Acrobat-style options or write print-ready PDF | `crates/print` + `craft-print` dep `Cargo.toml:18`; `doc_print` schema `tools.rs:479-512` | implemented (web prints via browser dialog — `docs/gaps.md` gap 4 note) |
-| 15 | Export pages as PNG/JPEG/TIFF, all images, text; Word/PPTX/HTML/RTF | `crates/export` (`lib.rs:360,584,725`, `pptx.rs:116`); tools `doc_export_images`, `doc_export_all_images`, `doc_export_text`, `doc_export_office` | implemented (Word layout lossy, no XLSX — gap 8) |
-| 16 | Optimize / Reduce File Size / space audit | `crates/optimize`; tools `doc_reduce`, `doc_optimize`, `doc_audit_space` | implemented (signed docs refused — `doc_optimize` schema) |
-| 17 | PDF/A-2b/3b verify + convert | `crates/preflight/src/lib.rs:304,549`; tools `pdfa_verify`, `pdfa_convert` | partial: only 2b/3b, structural rules; no Preflight, PDF/X, PDF/UA (gap 9) |
-| 18 | Accessibility: 32-rule check, report, review records, alt text, tag edits, text-only autotag | `crates/a11y`; `accessibility_*` tools `tools.rs:876-963` | partial (mixed content/existing tags refused by autotag; gap 11) |
-| 19 | Compare text (+visual regions), report, mark-as-comments; measure distance/area/perimeter + CSV | `crates/compare`, `crates/measure`; tools `doc_compare*`, `measure_*` | implemented (no side-by-side/filters — gap 21) |
-| 20 | Edit existing text/images in place; add/edit text, images, links, headers/footers, watermark, background | `crates/edit`; tools `text_edit`, `text_paragraphs`, `text_lines`, `image_edit`, `content_*`, `link_*`, `doc_header_footer`, `doc_watermark`, `doc_background` | partial: Latin text usually, CJK/RTL fragile/refused; same-page multi-object moves only (gap 3) |
-| 21 | CLI: info/render/text/edit/combine/extract/split/check/audit/batch/tools/run/ui/mcp | `apps/pdfcraft-cli/src/main.rs:49-74` (`USAGE`), command dispatch `:76-115` | implemented (`check` = dev robustness harness; `batch` limits in `docs/cli-batch.md`) |
-| 22 | One tool table shared by CLI, JSON scripts, MCP, Rust API | `crates/automation/src/tools.rs` (163 tools extracted at HEAD), `crates/automation/README.md`, `docs/mcp.md` | implemented; MCP opt-in stdio only (`apps/pdfcraft-cli/Cargo.toml` features, default `mcp` on) |
-| 23 | UI control channel: loopback + per-launch token; state/inspect/click/type/key/command/screenshot/dock/resize/quit | `crates/ui-egui/src/control.rs:276-360`; client + control-file safety `apps/pdfcraft-cli/src/main.rs:811-916` | implemented, opt-in via `--control` only |
-| 24 | Safe saves: incremental append keeps original bytes; atomic swap; autosave + crash recovery every 60 s (encrypted recovery stays encrypted) | `docs/architecture.md` §Data model; `crates/ui-egui/src/recovery.rs:4-17` (`AUTOSAVE_SECS = 60.0`); `doc_save` description | implemented |
-| 25 | Keyboard surface from a 194-command registry (⌘K palette, ⌘S/⇧⌘S, ⌘Z/⇧⌘Z, ⌘F/⌘G, ⌘D, ⌘J, ⌘,) | `crates/engine/src/commands.rs:163` (COMMANDS) `:186-197,217-224,322-323`; `canvas.rs:1978` | implemented (labels localize; ids stable) |
-| 26 | WebAssembly browser build of the same shell | `apps/pdfcraft-web/` (`trunk build --release`), `docs/architecture.md` §Shape | implemented (no recovery store, no control channel, browser print; Japanese Gothic Regular only) |
+| 1 | Installed 0.9.0 bundle is the inspected checkout | `/Applications/PdfCraft.app/Contents/Info.plist` `CFBundleShortVersionString`, `PdfCraftBuildCommit`; `git rev-parse HEAD` = `645016a…` | implemented (environment) |
+| 2 | Automation surface: **170** JSON-Schema tools and a **200**-command registry with menus/shortcuts | `crates/automation/src/tools.rs:117` (`tools()`) — 170 unique `t("name"` definitions; `crates/engine/src/commands.rs:163` (`COMMANDS`) — 200 `c(...)`/`ct(...)` entries | implemented |
+| 3 | Save in place is an incremental append; Save As/new path is a full rewrite; writes are atomic | `crates/automation/src/lib.rs:906-935` (`doc_save_with`: `full` defaults to `!same_file`); `crates/cos/src/writer.rs:180` (`write_incremental`); `crates/platform/src/staging.rs:73` (`write_atomically`) | implemented |
+| 4 | Unsaved work is autosaved every 60 s and offered for recovery after a crash; encrypted docs stay encrypted | `crates/ui-egui/src/recovery.rs:25` (`AUTOSAVE_SECS = 60.0`), module docs | implemented (native; web has no store) |
+| 5 | Combine keeps bookmarks, links, form fields, layer defaults and attachments; split by count, pages, bookmarks or size | `crates/organize/src/import.rs:904-1040` (attachments, layers, fields, outline); `doc_combine`/`doc_split` at `crates/automation/src/tools.rs:242,269` | implemented |
+| 6 | Create PDF from blank, images and text; 12 convertible extensions; text creation is WinAnsi-only | `crates/create/src/lib.rs:489` (`CONVERTIBLE` = png/jpg/jpeg/tif/tiff/gif/bmp/jp2/j2k/jpx/txt/text); `doc_create` at `crates/automation/src/tools.rs:1188-1205` ("Western European (WinAnsi) characters only") | implemented (text partial) |
+| 7 | Export pages as PNG, JPEG or TIFF at a chosen DPI, including unsaved edits | `crates/engine/src/export.rs:162` (`ImageFormat`); `doc_export_images` at `crates/automation/src/tools.rs:914`; CLI `render` also writes `.pam` (`apps/pdfcraft-cli/src/main.rs:581-605`) | implemented |
+| 8 | Office export: `.docx`, `.pptx`, `.html/.htm`, `.rtf`; no `.xlsx`/SVG/EPS/PS | `crates/engine/src/compare.rs:126-148` (`OfficeFormat`); `doc_export_office`; gap 8 in `docs/gaps.md` | partial (basic/lossy) |
+| 9 | Form/comment data import/export through `.xfdf`, `.fdf`, `.xml`, `.xdp`, `.csv`, `.txt/.tab/.tsv` | `crates/xfdf/src/lib.rs:49-59` (`Format::from_extension`); `doc_export_data`/`doc_import_data` at `crates/automation/src/tools.rs:408,411` | implemented |
+| 10 | OCR produces a searchable image but reads only unaccented Latin (`en`) | `crates/ocr/src/lib.rs:27` (`LANGUAGES = [("en","English")]`); `ocr_recognize` schema enum `["en"]` at `crates/automation/src/tools.rs:1127`; models required (`ocr_status`) | partial |
+| 11 | PDF/A verify/convert only 2b and 3b; no Preflight | `crates/preflight/src/lib.rs:31` (`Level::{A2b,A3b}`); `pdfa_verify`/`pdfa_convert`; Preflight catalog entry `Planned("M11")` at `crates/engine/src/catalog.rs:408` | partial |
+| 12 | Redaction removes content and verifies nothing readable remains; separate faux-redaction audit; CLI audit exits non-zero | `crates/redact/src/lib.rs:493` ("Verify: nothing readable may remain"); `redact_apply` at `crates/automation/src/tools.rs:442`; `doc_audit_redactions` at `:472`; `apps/pdfcraft-cli/src/main.rs:169-192` | implemented |
+| 13 | Signatures: `.p12/.pfx`, macOS Keychain, Windows store; PAdES B-B; certification levels; no TSA/smart-card controls | `sign_document` schema at `crates/automation/src/tools.rs:694-747`; `crates/sign/src/cms.rs:291` (PAdES B-B); `crates/sign/src/keys.rs:95` (SHA-256/384); no `tsa` argument; gap 10 in `docs/gaps.md` | partial |
+| 14 | Compare text + visual regions, side-by-side view, PDF report, mark differences as comments | `doc_compare`/`doc_compare_report`/`doc_compare_mark` at `crates/automation/src/tools.rs:1091-1100`; `crates/ui-egui/src/compare_ui.rs:112` ("Side by side"), `:207-214` (auto side-by-side when the old tab is open and width ≥ 1000) | implemented (no filters/page ranges) |
+| 15 | Accessibility checker with 32 rules in 7 categories; text-only auto-tagging; report | `accessibility_check` description at `crates/automation/src/tools.rs:935`; `accessibility_autotag_apply` at `:930`; `crates/a11y/{autotag.rs,report.rs,structure.rs}`; gap 11 in `docs/gaps.md` | partial |
+| 16 | MCP server is opt-in, stdio-only, no port, with separate read/write roots and compact mode | `apps/pdfcraft-cli/src/main.rs:57-80` (`USAGE`); `docs/mcp.md`; `crates/automation/src/mcp.rs` | implemented |
+| 17 | UI control channel is opt-in, loopback-only, token-authenticated; inspect/click/type/key/command/screenshot/quit | `crates/ui-egui/src/control.rs:279-350` (method dispatch), `:777` ("transport (native only)"); `apps/pdfcraft/src/main.rs:487-511` (owner-only control file); `README.md` §Driving the app itself | implemented (native only) |
+| 18 | The macOS `.app` contains no `pdfcraft-cli`; CLI is a separate release zip | Bundle listing: `Contents/MacOS` holds only `PdfCraft`; `which pdfcraft-cli` empty; `crates/automation/README.md` §From an installed release | implemented (packaging fact) |
+| 19 | Existing-text editing is improved but still limited (Latin good; CJK/RTL/rotated/vector/structure gaps) | `docs/gaps.md` gap 3; `docs/editing-existing-text.md`; `text_edit` description at `crates/automation/src/tools.rs:1279`; refusal for text no available face can show | partial |
+| 20 | Web build has no crash recovery, no control channel transport, no `ui.open`, browser print only | `crates/ui-egui/src/recovery.rs:10`; `crates/ui-egui/src/control.rs:769` (`ui.open` wasm arm), `:777`; `crates/ui-egui/src/web_print.rs` | partial |
 
-## README/doc claims not verifiable from code (mark as claimed)
+## Notes and discrepancies found while verifying
 
-| Claim | Where | Note |
-|---|---|---|
-| Saves "independently checked with qpdf"; output verified with hayro/qpdf/poppler | `README.md:173-176,368` | dev/CI oracles, not a runtime product feature |
-| Corpus sweeps: 983 pdf.js files, 963 open/render, 958 edit round trips | `README.md:364-367` | numbers from the pinned corpus harness (`xtask check`), not reproducible here |
-| "0 crashes across the 983-file pdf.js corpus" | `README.md:115` | README claim; fuzzing still finds crashes/hangs (`README.md:425`) |
-| Word-F1 0.98 against `pdftotext`; readiness percentages (alpha, ≈49%) | `docs/architecture.md:67,104`; `ROADMAP.md:50` | harness/assessment docs, not runtime guarantees |
+- `docs/target-app-parity.md` is stale in at least two places: it says "141 automation tools" and
+  lists "side-by-side compare" as missing. HEAD has 170 tools and `compare_ui::side_by_side`.
+  Code was trusted over the doc.
+- `docs/file-format-parity.md`'s OCR table says camera images (edges, perspective) are missing, but
+  `page_enhance_camera` exists and `crates/engine/src/camera.rs` warps a photographed page to an
+  upright rectangle; the cleanup path is `camera_clean.rs`. Code was trusted over the doc.
+- Gap 5 (Chinese UI boxes) is nuanced: desktop builds fall back to an installed Chinese face
+  (`crates/ui-egui/src/system_fonts.rs:5`, `theme.rs:231`), while the web build has no installed
+  fonts. Do not state "Chinese UI is broken everywhere".
+- README and ROADMAP quote different readiness percentages (README "57% of features / 49% overall",
+  ROADMAP "≈67% tier-weighted / 56.9% unweighted"). This skill therefore says "alpha" and does not
+  quote a percentage.
+- `docs/localization.md` contains several duplicated, mutually inconsistent status paragraphs; the
+  authoritative list in `crates/ui-egui/src/i18n/*.tsv` has 23 catalogs. Not used for any claim.
 
-## Spot-checks I could not run (no GUI launch per brief)
+## Confidence
 
-- Installed 0.7.1 bundle was inspected only via `Contents/Info.plist`; its exact menu/HUD text and
-  feature set may differ from HEAD 0.8.0 (`--version` not executed to avoid launching).
-- macOS `pdfcraft-cli` is not installed on the authoring machine (separate release zip), so CLI output
-  samples come from source, not an executed binary.
-- `CRAFT_FONTS_DIR`/`PDFCRAFT_MODELS` state of the installed app is unknown; Japanese UI and OCR
-  availability in the installed build were not exercised.
+- **High** for automation surface, command ids/shortcuts, file formats, save/redaction/signature
+  mechanics, control channel, and packaging: all read directly from code at the inspected commit.
+- **Medium** for rendering/text fidelity and Office export quality: docs state them, but the repo's
+  own gap list says they are unmeasured or basic (`docs/gaps.md` gaps 2, 8, 12).
+- **Medium-low** for OCR accuracy, XFA fidelity, and large-file performance: documented limits
+  exist, but no independent measurement was performed for this skill.

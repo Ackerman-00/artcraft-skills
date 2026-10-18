@@ -1,7 +1,7 @@
 # PdfCraft automation tool table (names and titles)
 
 Generated from `crates/automation/src/tools.rs` at commit
-`9931329b9fae0b05373b4dc3ac7c58541f0891a4` (0.8.0). 163 tools.
+`645016addcfb9078c557f0189559ab47cdcee057` (0.9.0). 170 tools.
 
 Do not treat this file as a capability contract for a different version: run
 `pdfcraft-cli tools` on the installed binary for the live list with full JSON Schemas,
@@ -21,6 +21,7 @@ mapping. See `../SKILL.md` for how to call them (`pdfcraft-cli run`, JSON script
 | `page_render` | Render a page |
 | `object_list` | List editable objects |
 | `object_move` | Move objects together |
+| `text_word_count` | Word count |
 | `text_extract` | Extract text |
 | `text_find` | Find text |
 | `page_rotate` | Rotate pages |
@@ -103,6 +104,7 @@ mapping. See `../SKILL.md` for how to call them (`pdfcraft-cli run`, JSON script
 | `doc_unprotect` | Remove security |
 | `page_replace` | Replace pages |
 | `page_duplicate` | Duplicate pages |
+| `page_transition_set` | Set page transitions |
 | `page_set_box` | Set page boxes / crop |
 | `doc_header_footer` | Add header and footer |
 | `doc_watermark` | Add watermark |
@@ -111,7 +113,9 @@ mapping. See `../SKILL.md` for how to call them (`pdfcraft-cli run`, JSON script
 | `doc_export_images` | Export pages as images |
 | `accessibility_autotag_preview` | Preview automatic tags |
 | `accessibility_autotag_apply` | Automatically tag text-only PDF |
+| `accessibility_autotag_form_fields` | Tag form fields |
 | `accessibility_check` | Check for accessibility |
+| `accessibility_find_untagged` | Find untagged content |
 | `accessibility_report` | Accessibility report |
 | `accessibility_review_record` | Accessibility review record |
 | `accessibility_review_save` | Save accessibility review decisions |
@@ -121,7 +125,9 @@ mapping. See `../SKILL.md` for how to call them (`pdfcraft-cli run`, JSON script
 | `accessibility_figures` | List figures |
 | `accessibility_set_alt` | Set alternate text |
 | `accessibility_tags` | List structure tags |
+| `accessibility_tag_content` | List tag content |
 | `accessibility_set_tag_property` | Edit tag property |
+| `accessibility_mark_tag_artifact` | Mark tag content as artifact |
 | `accessibility_move_tag` | Move structure tag |
 | `form_merge_data` | Merge data files into spreadsheet |
 | `js_run` | Run JavaScript |
@@ -167,6 +173,7 @@ mapping. See `../SKILL.md` for how to call them (`pdfcraft-cli run`, JSON script
 | `doc_open_revision` | Open a revision |
 | `doc_optimize` | Optimize PDF |
 | `doc_flatten` | Flatten |
+| `xfa_to_static` | Convert an XFA form to a static form |
 | `edit_undo` | Undo |
 | `edit_redo` | Redo |
 | `command_list` | List commands |

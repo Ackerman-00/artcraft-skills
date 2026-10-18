@@ -1,38 +1,45 @@
-# Evidence index — wordcraft SKILL.md
+# WordCraft skill — evidence table
 
-Repo: https://github.com/storytold/wordcraft · HEAD `fc41918814f62645b6746ed68e71e8c2c2e85d6f`
-("Release 0.7.0", 2026-10-14) · read 2026-10-14. Installed app: `/Applications/WordCraft.app`
-0.6.1 (`Contents/Info.plist CFBundleShortVersionString`) — older than HEAD.
+Repo inspected read-only at HEAD `f2e15cf8f899a79899a2d9595ca4ce7df1e5ea22` (tag v0.8.0, "Release 0.8.0"),
+2026-10-18. Installed bundle `/Applications/WordCraft.app` = same commit (`Info.plist`
+`WordCraftBuildCommit`). Lines below are from that tree.
 
-| # | Claim in SKILL.md | Evidence | Tier |
+| # | Claim in SKILL.md | Evidence (repo-relative) | Tier |
 |---|---|---|---|
-| 1 | Clean-room Rust reimplementation of Microsoft Word; alpha | `README.md:13-21,202`; `ROADMAP.md:3,46-52` | claimed (project docs) |
-| 2 | Every action is a command; registry built from one module per area | `crates/engine/src/cmd/mod.rs:58-103` (`registry()`); `crates/engine/src/lib.rs:103-135` (`Registry`) | implemented |
-| 3 | 617 command ids at HEAD (README says 422 — older measure) | grep `CommandSpec::new("[^"]*"` in `crates/engine/src/cmd/*.rs` = 617 unique; `README.md:98` says 422 | implemented (count from source) |
-| 4 | `wordcraft-cli commands` lists id/label/shortcut/location; `--json` dumps params docs | `apps/wordcraft-cli/src/main.rs:292-306` | implemented |
-| 5 | `.docx`/`.docm`/`.dotx`/`.dotm` read + write | `crates/engine/src/io_ext.rs:8,25`; `crates/docx/src/lib.rs:29-32` (`read`, `write_as`); `docs/file-format-parity.md` (~65% fidelity, corpus untested) | implemented / untested on real-world corpus (`gaps.md` #1) |
-| 6 | `.doc`/`.dot` read-only; Word 6/95 & RC4/XOR refused | `crates/docbin/src/lib.rs:73` (only `read`); `docs/file-format-parity.md` `.doc` row; `docs/gaps.md` #14 | partial (read only) |
-| 7 | PDF export with selectable text, links, bookmarks, Print Markup; no PDF/A | `crates/pdf/src/lib.rs:97` (`export`); `crates/engine/src/io_ext.rs:32-35`; `docs/file-format-parity.md` PDF row | implemented |
-| 8 | PNG page render/export (`page`, `scale`) | `crates/engine/src/io_ext.rs:42` (`render_png`); `crates/engine/src/cmd/file.rs:60` (`file.exportPng`) | implemented |
-| 9 | ODT/RTF/HTML/Markdown/LaTeX/TXT read+write via one crate | `crates/formats/src/lib.rs:26,29-58`; extension list `io.rs:9-31` | implemented (ODT/RTF ~50%, no notes/comments/revisions — file-format-parity) |
-| 10 | `.xml`: Flat OPC read/write; Word 2003 XML read + write (write drops shapes, charts, ink, equations, OLE) | `crates/docx/src/lib.rs:28-31` (`write_flat`, `write_wordml2003`, `read_xml`); `crates/docx/src/flat.rs`, `wordml2003_write.rs`; `docs/file-format-parity.md` `.xml` rows; `ROADMAP.md:142` | implemented / partial (2003 write) |
-| 11 | `.json` document model for agents | `crates/engine/src/io.rs:122,234` (serde `Document`); `docs/file-format-parity.md` `.json` row | implemented |
-| 12 | Password-protected `.docx` (ECMA-376 agile) open/save; `file.encrypt`; only Word packages | `crates/docx/src/crypt.rs:58` (`is_encrypted`), tests at `crypt.rs:876`; `io.rs:96` (`can_encrypt`), `io.rs:109-115,244-250`; `cmd/file.rs:48` (`file.encrypt`) — note `docs/gaps.md` #9 is stale | implemented (code ahead of docs; verify installed 0.6.1) |
-| 13 | CLI surface: convert/info/text/inspect/render/run/commands/parity/mcp/zotero + all flags | `apps/wordcraft-cli/src/main.rs:13-46` (USAGE), handlers `:184-403` | implemented |
-| 14 | MCP tools (headless + app-only) | `crates/mcp/src/tools.rs:171-270`; `docs/mcp.md:83-97` | implemented |
-| 15 | Control channel JSON-lines with key file, 1 MiB/line, 30 s auth | `apps/wordcraft/src/control_server.rs`; `docs/control-protocol.md:3-47`; key path `crates/control-key/src/lib.rs:11,42-43` | implemented |
-| 16 | Macros record/replay command sequences (not VBA) | `crates/engine/src/cmd/tools.rs:349-363` (`tools.recordMacro`, `tools.macros`); `:724-750`; `docs/gaps.md` #22 (no VBA) | implemented / no VBA |
-| 17 | Zotero integration via running Zotero desktop; CLI subcommand | `crates/zotero`; `docs/zotero.md`; `apps/wordcraft-cli/src/main.rs:360-398` | implemented (requires Zotero running) |
-| 18 | Mail merge recipients: CSV/TSV, typed lists, `.xlsx`/`.xlsm`/`.ods`; no xls/Access/Outlook | `crates/engine/src/cmd/mailings.rs:39-137`; `crates/formats/src/sheet.rs:92`; `docs/gaps.md` #21 | implemented / partial (sources) |
-| 19 | Templates: blank/sample/letter/resume/report | `crates/engine/src/cmd/file.rs:149-153`; `crates/mcp/src/tools.rs:211` | implemented |
-| 20 | Web/WASM build; no TCP control channel, browser file picker, downloads | `apps/wordcraft-web/src/main.rs:5-10`; `Trunk.toml:10` (port 8771); `README.md:146` | implemented (with browser limits) |
-| 21 | Native printing through craft-print + `file.printPdf`; dialog depth missing | `apps/wordcraft/src/print.rs`; `apps/wordcraft/Cargo.toml:70`; `docs/control-protocol.md:77-99`; `docs/gaps.md` #6 | implemented / partial (depth) |
-| 22 | One document per window; `file.open` replaces current document | `crates/engine/src/cmd/file.rs` `open()` → `s.set_document(doc)`; single `Session` per `WordApp` (`crates/ui-egui/src/lib.rs`) | implemented |
-| 23 | AutoSave limited to docx family/odt/rtf/json/xml + saved path | `crates/ui-egui/src/lib.rs:1792-1798` (`keeps_everything`); `crates/ui-egui/src/chrome.rs:225-250` | implemented |
-| 24 | Beta-blocking gaps: DOCX corpus untested, ink/OLE/charts, crashes/hangs field reports, pagination ≠ Word, dialog depth, printing depth, proofing languages | `docs/gaps.md` ranked table #1-#8 (dated 2026-10-10, updated 2026-10-13) | claimed/partial (tracked gap list) |
-| 25 | Typing parity pinned by tests; `=rand()`/`=lorem()` | `docs/typing-parity.md:13-23`; `crates/engine/src/tests_typing.rs` | implemented |
-| 26 | Proofing: English, Polish, Portuguese (pt-BR), Italian only | `crates/proof`; `docs/gaps.md` #8; revision history 2026-10-12 | partial |
-| 27 | Chart/SmartArt/OLE: Word-made charts read-only, unsupported types placeholder, OLE picture-only, 3D dropped | `docs/gaps.md` #2,#13; `docs/file-format-parity.md` charts/OLE/3D rows; `crates/engine/src/cmd/chart.rs` | partial |
-| 28 | Never-crash policy: no panics in non-test code, `Result` errors, hostile-params test | `AGENTS.md` (Never crash); `crates/engine/src/tests.rs::hostile_params_never_panic`; crate-root `#![deny(clippy::unwrap_used, …)]` | implemented (policy) |
-| 29 | Logs at `~/Library/Application Support/WordCraft/logs/wordcraft.log`, rotating, 16 MiB cap | `README.md:165-176`; `apps/wordcraft/src/logging.rs`; `apps/wordcraft/src/main.rs:124-131` | implemented |
-| 30 | Parity: 487/502 catalog features live (97%) | `docs/parity-checklist.md:5`; enforced floor `crates/engine/src/catalog.rs:572-578` (≥90.4%) | implemented (measured) |
+| 1 | Clean-room reimplementation of Microsoft Word; alpha; MIT OR Apache-2.0; repo storytold/wordcraft | README.md:13; ROADMAP.md:3,44–52; Cargo.toml:9,11 | implemented (self-described; license files present) |
+| 2 | 487/502 (97.0%) of the Word ribbon/menu catalog has live commands; floor enforced by test | docs/parity-checklist.md:5; `crates/engine/src/catalog.rs::parity_floor` (asserts ≥ 90.4%) | implemented (generated doc + test) |
+| 3 | Command counts are inconsistent across docs (422 README / 433 ROADMAP / "over 270" mcp.md) | README.md:98; ROADMAP.md:26; docs/mcp.md:85 | claimed (numbers), registry itself implemented — `crates/engine/src/cmd/mod.rs::registry`, list with `wordcraft-cli commands` |
+| 4 | Dogfooded .docx read+write (ECMA-376), incl. Strict read; .docm/.dotx/.dotm with macros kept, never run | `crates/docx/src/lib.rs` (read/write/write_as, read_xml); `crates/engine/src/io_ext.rs:9,26–28`; docs/file-format-parity.md:38–40 | implemented (synthetic tests only — gap #1, "never tested on real-world files") |
+| 5 | `.doc`/`.dot` Word 97-2003 read-only; Word 6/95 refused; no writer | `crates/docbin/src/lib.rs:1–9` ("There is no writer"); docs/file-format-parity.md:41; docs/gaps.md:40 | implemented (read), not implemented (write) |
+| 6 | Formats opened: docx, docm, dotx, dotm, doc, dot, txt, md, markdown, html, htm, rtf, odt, tex, latex, ltx, xml, json, *.wcraft.json | `crates/engine/src/io.rs:9–29` OPEN_EXTS; `crates/formats/src/lib.rs::EXTENSIONS` | implemented |
+| 7 | Formats saved: docx, docm, dotx, dotm, pdf, txt, md, html, rtf, odt, tex, png, json, xml | `crates/engine/src/io.rs:31` SAVE_EXTS; `crates/engine/src/io_ext.rs:24–39` | implemented |
+| 8 | PDF export with selectable text/links/bookmarks (krilla via pinned craft-pdf); Print Markup mode | `crates/engine/src/io_ext.rs:33–36`; Cargo.toml:55; docs/file-format-parity.md:42 | implemented (~80% fidelity estimated by repo) |
+| 9 | Password-protected `.docx` opens and saves (agile encryption); `.doc` password support documented inconsistently | `crates/docx/src/crypt.rs` (encrypt/decrypt/check_password exported, engine test `password_protected_documents_round_trip`); docs/file-format-parity.md rows 52 vs 54–55 contradict each other | implemented (docx, synthetic tests); `.doc` = **uncertain — see docs/file-format-parity.md** |
+| 10 | CLI subcommands and flags as documented | `apps/wordcraft-cli/src/main.rs:15–57` (USAGE), `:305–521` (dispatch), `:226–246` (option tables), `:558–567` (exit codes) | implemented |
+| 11 | `render` defaults page 1, scale 2.0; `convert *.png` exports page 1 only; failure leaves no output file | apps/wordcraft-cli/src/main.rs:320–321, 351–359, 869–892 (test `render_and_run_valid_options_and_defaults_produce_files`) | implemented |
+| 12 | MCP server on stdio with the listed tools + resources; app-only screenshot/click/key/ui_inspect | `crates/mcp/src/tools.rs:55–155`, `:168–275`; docs/mcp.md:81–102 | implemented |
+| 13 | Headless MCP file confinement via `--automation-read-root`/`--automation-write-root`; error with `--connect`; desktop app not confined | apps/wordcraft-cli/src/main.rs:205–223, 436–478, tests 643–726; docs/mcp.md:27–79 | implemented (headless only) |
+| 14 | Control channel: JSON lines on 127.0.0.1, per-window key, method list, key file path/mode | docs/control-protocol.md:3–72; `crates/control-key/src/lib.rs` (settings_dir, key_path); `apps/wordcraft/src/control_server.rs:1–10` | implemented (desktop app only; web has none) |
+| 15 | `file.close` errors on unsaved changes over control channel unless `{"force":true}` | docs/control-protocol.md:79–86; `crates/engine/src/cmd/file.rs:112–118` | implemented |
+| 16 | `review.trackChanges` toggles when `value` is omitted (footgun); `--author`/`file.setAuthor` name the agent | docs/mcp.md:18–25; `crates/engine/src/cmd/review.rs:27`; `crates/engine/src/cmd/file.rs:122–124`; cli test `author_flag_names_the_headless_session` | implemented |
+| 17 | Macros record/replay command sequences | `crates/engine/src/cmd/tools.rs:349–363`; README.md:162–163 | implemented |
+| 18 | Desktop app flags `--sample`, `--control PORT`, `[FILE…]`; bad port exits 2 | `apps/wordcraft/src/main.rs:266–302` | implemented |
+| 19 | `wordcraft-cli` is a separate release artifact, not inside the app bundle | packaging/macos/package.sh:5,44,206–217; `/Applications/WordCraft.app/Contents/MacOS/` contains only `WordCraft`; nothing named wordcraft-cli on this machine's PATH/Applications (checked) | implemented (packaging); install state = **not installed here** |
+| 20 | WebAssembly build exists, checked in CI; no TCP control channel in the web build; trunc flags `?sample`, `?webgl` | `apps/wordcraft-web/src/main.rs:1–8`; apps/wordcraft-web/Trunk.toml; xtask/src/main.rs:124–153 (`wasm` step in `ci`) | implemented (repo states web works; not exercised by this agent) |
+| 21 | Local recovery of unsaved work, desktop only; headless sessions create none; unencrypted; newest edits can be lost | docs/recovery.md:1–56; engine test scope listed at docs/recovery.md:67–70 | implemented (documented limits) |
+| 22 | Native printing via craft-print (`ui.printSettings`, `ui.printSubmit`, `file.printPdf`); print-dialog depth gap | docs/control-protocol.md:88–103; `crates/ui-egui/src/printing.rs:14–17`; docs/gaps.md:32 | implemented (partial parity per gaps #6) |
+| 23 | Silent loss: charts/SmartArt/OLE cannot be edited; native ink forms dropped; no 3D models; no legacy form fields | docs/gaps.md:30,31,39; docs/file-format-parity.md:89–92 | partial / not implemented |
+| 24 | RTF/ODT/HTML write fidelity ~50–60%; Word 2003 XML write drops shapes/charts/equations etc. | docs/file-format-parity.md:44–50 | partial |
+| 25 | Proofing only English, Polish, Portuguese, Italian, Croatian, Turkish, Russian (+Czech spelling); 54 dialogs vs ~100 | docs/gaps.md:35,33 | partial |
+| 26 | Mail merge sources: csv/tsv/txt (+encodings), xlsx/xlsm/xls/ods; no Outlook/Access/email merge | `crates/formats/src/sheet.rs`; crates/engine/src/cmd/mailings.rs:335,456; docs/gaps.md:47 | implemented (partial per gaps #21) |
+| 27 | One document per window, no tabs; no Side-by-Side window commands yet | `crates/ui-egui/src/lib.rs:420–421` (single `Session`); docs/gaps.md:52 | implemented (single-doc model) / not implemented (window commands) |
+| 28 | Headless UI screenshots via `cargo run -p wordcraft-ui-egui --example ui_shot` | `crates/ui-egui/examples/ui_shot.rs:1–14` | implemented |
+| 29 | Logs at `<settings>/logs/wordcraft.log`, rotated, `RUST_LOG` honoured | README.md:165–182; `apps/wordcraft/src/logging.rs` (663 lines) | implemented |
+| 30 | Zotero integration requires the Zotero desktop app | `crates/zotero` (Command enum, client, bridge); docs/zotero.md:1–30; cli `zotero` subcommand main.rs:479–516 | implemented (external dependency) |
+
+Notes for the orchestrator:
+- Rows 4, 9, 23–26 are the ones an agent reviewer should spot-check; the repo is unusually
+  self-honest, but its own docs carry stale rows (e.g. file-format-parity.md row 52 vs 54–55 on
+  encryption; several "README claims" such as the 422-command count drift from ROADMAP.md).
+- No claim in SKILL.md comes from running the app: nothing was launched, built or modified.
+  Every statement traces to a file path above.

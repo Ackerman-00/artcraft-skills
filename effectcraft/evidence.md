@@ -1,47 +1,60 @@
-# Evidence table — effectcraft skill
+# EffectCraft — evidence table
 
-Repo: `storytold/effectcraft` @ `549e9d825132986d6167c1432cd3328efcbb0278` (2026-10-14).
-Tier key: **I** = implemented (code path wired to UI/CLI), **P** = partial/stub, **C** = claimed but unverified / docs-only, **N** = not implemented (documented gap).
+Checkout: `storytold/effectcraft` at tag `v0.11.1`, commit
+`2a01226894c6bc58ae4fadcc24a10198d693acaa` (2026-10-18). Installed bundle reports 0.11.1 and the
+same `EffectCraftBuildCommit`. No GUI was launched.
 
-| # | Capability claim | Evidence (repo-relative) | Tier |
-|---|---|---|---|
-| 1 | Clean-room, pure-Rust After Effects reimplementation; alpha, breadth ≈ 91% / ready ≈ 45% | `README.md` §What EffectCraft is, §Where it stands; `CLAUDE.md`; `ROADMAP.md` headline numbers | I (project fact) |
-| 2 | All actions are engine commands reachable from menu, CLI, control channel and MCP | `CLAUDE.md` non-negotiables; `docs/agents.md` intro; `crates/engine` | I |
-| 3 | Native project format `.ecproj`: versioned JSON, schema 2, repairs out-of-limit values on open | `crates/project/src/lib.rs:34` (`SCHEMA_VERSION`); `crates/engine/src/commands/file.rs:40-66` (`from_json_repaired`, newer-schema toast) | I |
-| 4 | `.ecprojx` / `.xml` XML copies of the JSON project are read and written | `crates/engine/src/commands/file.rs:97-103`; `crates/engine/src/xml_project.rs` | I |
-| 5 | 306 registered effects / 3,017 parameters; GPU for 280 of 306 | `docs/effects-parity.md:14`; registry `crates/effects/src/lib.rs:485`; `docs/hardware-parity.md:16` | I (count from repo measurement) |
-| 6 | 38 blend modes | `crates/color/src/blend.rs:52` (`BlendMode::ALL: [BlendMode; 38]`) | I |
-| 7 | Nine layer styles as property groups | `crates/project/src/styles.rs:4` | I |
-| 8 | Layer kinds incl. model/primitive and Classic vs Advanced 3D renderer | `crates/project/src/lib.rs:335` (`Renderer::Classic3D/Advanced3D`), `:655` (`LayerSource`) | I |
-| 9 | Keyframe interpolation: linear/Bezier/hold + auto/continuous Bezier, spatial tangents | `crates/keyframe/src/lib.rs:26,72,82` | I |
-| 10 | Import extension sets (stills/video/audio/models/data) exactly as coded | `crates/media/src/lib.rs:62-80`; `crates/engine/src/commands/file.rs:562` (`DATA_EXTENSIONS`) | I |
-| 11 | Lottie import/export incl. dotLottie, with warnings list | `crates/lottie/src/import.rs`, `export.rs`; `crates/engine/src/tests_lottie.rs:28-59`; `docs/agents.md` §CLI | I |
-| 12 | Timeline interchange import/export (FCP7 XML/FCPXML/OTIO/EDL/AAF/OMF; not prproj) | `crates/interchange`; `crates/engine/src/commands/timeline.rs:25,133`; `docs/file-format-parity.md:90` | I |
-| 13 | Render Queue: 13 output formats incl. H.264/HEVC/AV1/ProRes/WebM/seq/GIF/WAV/AIFF; field render + pulldown | `crates/project/src/render_queue.rs:531` (`OutputFormat::ALL`), `:99,139` (`FieldRender`, `Pulldown`) | I |
-| 14 | Save Frame As Photoshop Layers (PSD) and ProEXR | `crates/engine/src/commands/frame_export.rs:1-7` | I |
-| 15 | Essential Graphics `.ectemplate` + animation presets `.ecpreset` (own formats) | `crates/engine/src/commands/essential.rs:10,807`; `crates/engine/src/commands/animation.rs:16,478` | I |
-| 16 | Headless CLI with documented subcommands/flags and exit codes 0/1/2 | `apps/effectcraft-cli/src/main.rs:92-124,285-297` | I |
-| 17 | MCP server over stdio: headless, `--autosave`, `--bridge`, file confinement; shipped `.mcp.json` | `apps/effectcraft-cli/src/main.rs:604-627`; `crates/automation/src/server.rs`; `docs/mcp.md`; `.mcp.json` | I |
-| 18 | Control channel `--control PORT`: localhost JSON-lines, engine.execute/ui.*/render.frame/screenshot | `docs/control-protocol.md`; `apps/effectcraft/src/main.rs:1-11,88-95`; `apps/effectcraft/src/control_server.rs` | I |
-| 19 | JSX scripting with AE object model + ScriptUI; `#include`; no `.jsxbin` | `crates/script`; `docs/scripting-parity.md:21-27` | I / N for jsxbin |
-| 20 | WASM browser build of the full app (single-threaded; workers for jobs) | `apps/effectcraft-web`; `docs/web.md:1-9,55,103`; `cargo xtask web|wasm` | I |
-| 21 | Tracking suite: motion, mask/face tracking, Warp Stabilizer, 3D Camera Tracker, Roto Brush, Object Matte | `docs/agents.md` §Tracking suites; `crates/segment`; `crates/effects/src/object_matte.rs`, `camera_tracker.rs`, `face_track.rs`, `roto.rs`, `warp_stab.rs` | I |
-| 22 | After Effects projects cannot be opened (`.aep`/`.aepx` no reader) | `docs/gaps.md` gap 1; no reader in `crates/`; `README.md` §Where it stands | N |
-| 23 | After Effects plug-ins cannot run; only WASM effect plug-ins | `README.md`; `docs/gaps.md` gap 19; `crates/plugin` | N / I (own plugins) |
-| 24 | `.mogrt`, `.ffx`, `.aet/.aetx`, `.ars/.aom`, `prproj`, `.jsxbin` unsupported | `docs/file-format-parity.md:25-34,90`; `docs/scripting-parity.md:28` | N |
-| 25 | Missing media formats: AVI, camera raw, HEIF/AVIF, USD/USDZ, `.sbsar`, SGI/PICT etc.; Media Browser lists AVI (import refuses) | `docs/file-format-parity.md:54-84`; `docs/gaps.md` gap 17; `crates/media/src/lib.rs:62-80` | N / P |
-| 26 | No hardware video decode/encode; HEVC/AV1 no B-frames; ProRes 4444 colour tag bug #340 | `docs/gaps.md` gaps 10,15,22; `docs/hardware-parity.md` | N / P |
-| 27 | Fidelity vs After Effects largely unmeasured (one scalar-ease case, 168 samples) | `docs/gaps.md` gap 2; `docs/fidelity/README.md` | P |
-| 28 | Open crash reports; no PR CI gate | `docs/gaps.md` gaps 3,4 | N |
-| 29 | Missing-footage relinking implemented at HEAD (`file.relinkFootage`, plus rename-rescan) | `crates/engine/src/commands/relink.rs:12`; `crates/engine/src/commands/relink_moved.rs:196` | I (gaps.md gap 18 partly stale) |
-| 30 | Web build URL flags (`?demo`, `?empty`, `?storage=…`) and no system fonts | `docs/web.md:44-49,68` | I |
+Tiers: **implemented** = code path exists and is wired into UI/CLI/commands; **partial** = exists
+with named limits; **claimed** = docs/README say it but code could not be found; **not
+implemented** = no code path.
 
-Notes for the orchestrator:
-- Claims 5, 8 and 27 rest on the repo's own measured docs (`docs/effects-parity.md`,
-  `docs/gaps.md`), which are dated 2026-10-12 and re-audited against `upstream/main` 470ea7a3; the
-  HEAD I inspected (549e9d8) is newer, and code spot-checks agreed (registry location, blend modes,
-  schema version, render formats, CLI flags).
-- "306 effects" was verified by locating the registry and the parity doc's counted figure; the count
-  itself was not re-enumerated line-by-line from `registry()`.
-- Installed app (Info.plist) is v0.9.2, same as workspace `Cargo.toml` version; no release/HEAD
-  version skew observed at inspection time.
+| # | Capability claim | Evidence | Tier |
+|---:|---|---|---|
+| 1 | Native project `.ecproj` is versioned JSON (schema 2) with `savedBy`, `activeComp`/`openComps`, items, render queue; save validates by reading back and writes atomically | `crates/project/src/lib.rs:34-103,1350-1364,1510-1528`; `crates/engine/src/lib.rs:143`; `docs/architecture.md:94-103` | implemented |
+| 2 | `.ecprojx` is a lossless XML copy of the project, opened and saved like `.ecproj` | `crates/engine/src/xml_project.rs:1-25`; `crates/engine/src/commands/file.rs:47-48,86-91` | implemented |
+| 3 | Autosave, crash recovery, increment-and-save, and open-time repair of out-of-range project values | `crates/engine/src/autosave.rs`; `docs/preferences.md:45-49`; `crates/project/src/limits.rs:16-29`; `crates/engine/src/commands/file.rs:49-65,114-119` | implemented |
+| 4 | Render Queue writes 13 formats: H.264, HEVC, AV1, ProRes, uncompressed MOV, WebM, PNG/JPEG/TIFF/EXR sequences, GIF, WAV, AIFF | `crates/project/src/render_queue.rs:499-545` | implemented |
+| 5 | Lottie import/export for `.json` and `.lottie`, with a warnings list for inexpressible features | `crates/engine/src/commands/lottie.rs:9-51`; `crates/lottie/src/lib.rs:1-20` | implemented |
+| 6 | Timeline interchange in FCP7 XML, FCPXML, OTIO, EDL, AAF and OMF; native `.prproj` explicitly rejected; optional ProRes 4444 pre-render | `crates/interchange/src/lib.rs:1-18,66-72`; `crates/engine/src/commands/timeline.rs:25-31,132-150` | implemented (pre-render fidelity depends on `prerender`) |
+| 7 | 307 registered effects, 3032 parameters, 280 GPU-capable, all 32-bit float, 21 categories, 0 marked partial | `docs/effects.md:6-10`; `crates/effects/src/lib.rs:485-529`; `crates/engine/src/commands/query.rs:181-202` | implemented |
+| 8 | 38 blend modes and 9 Layer Styles plus Blending Options/Global Light | `crates/color/src/blend.rs:52`; `crates/project/src/styles.rs:1-40` | implemented |
+| 9 | Layer kinds and 3D: footage, precomp, solid, text, shape, null, camera, light, 3D model, primitive; Classic 3D and Advanced 3D renderers | `crates/project/src/lib.rs:335-339,600-607,655-714`; `crates/gpu/src/lib.rs:1-20` | implemented |
+| 10 | Keyframes (linear/Bezier/hold, ease/velocity, roving), Graph Editor, time remap/stretch/reverse/freeze | `crates/keyframe/src/lib.rs:23-46,429-437`; `crates/engine/src/commands/prop.rs:1288-1310`; `crates/engine/src/commands/layer_time.rs:1-4,253` | implemented |
+| 11 | JavaScript expressions with the AE object model, and `.jsx`/`.js` scripting with ScriptUI panels | `crates/expr/src/lib.rs:1-25`; `crates/script/src/lib.rs`; `docs/scripting-parity.md:15-33` | implemented; partial vs AE (no `.jsxbin`, startup/shutdown scripts, script shortcuts) |
+| 12 | Motion/mask/face tracking, Warp Stabilizer, 3D Camera Tracker, Roto Brush, Object Matte, Content-Aware Fill, Auto-trace | `crates/engine/src/commands/{mask_interp,warp_cmds,camera_cmds,roto_cmds,content_fill,autotrace}.rs`; `crates/engine/src/models.rs:404-453` | implemented (AE fidelity unmeasured) |
+| 13 | GPU compositor on wgpu (Metal/Vulkan/Direct3D 12/WebGPU); CPU reference; app defaults to GPU, headless CLI to CPU | `crates/gpu/src/lib.rs:1-34`; `docs/architecture.md:266-277`; `apps/effectcraft-cli/src/main.rs:350-371` | implemented |
+| 14 | CLI with 12 subcommands and JSON output, headless by default | `apps/effectcraft-cli/src/main.rs:1-38,92-192` | implemented |
+| 15 | MCP server with 36 tools (27 headless, 9 bridge-only) and two resources | `crates/automation/src/tools.rs:93-105,542-980`; `docs/mcp.md:3-52` | implemented |
+| 16 | Localhost JSON control channel for the live UI, no authentication | `apps/effectcraft/src/control_server.rs:27`; `docs/control-protocol.md:9-25` | implemented |
+| 17 | WebAssembly build with browser storage and `window.effectcraft` | `apps/effectcraft-web`; `docs/web.md:1-20,379-410` | implemented (not the installed macOS app) |
+| 18 | `.aep` / `.aepx` import | `README.md:227`; `docs/file-format-parity.md:21-26`; no reader found by `rg` over `crates/` and `apps/` | **not implemented** |
+| 19 | After Effects SDK plug-ins, `.ffx` presets, `.mogrt` templates | `README.md:228`; `docs/plugins.md:12-23`; `docs/file-format-parity.md:27-29` | **not implemented** (only `.wasm` plug-ins and `.ecpreset`/`.ectemplate`) |
+| 20 | Hardware video decode/encode and pro output formats (16-bpc, AVI, MXF, DNxHR, DPX/TGA/PSD sequences, ProRes RAW) | `docs/gaps.md:74,81`; `docs/file-format-parity.md:99-106` | **not implemented / partial** (pure-Rust encoders only) |
+
+## Docs-vs-code discrepancies at this tag
+
+| Claim in docs | What the code shows | Evidence |
+|---|---|---|
+| `docs/gaps.md` gap 18: "no relink when a project moves" | `footage.relink`, `file.relinkFootage`, and automatic moved-project candidate search exist | `crates/engine/src/commands/relink_moved.rs:1-18`; `relink.rs:184-190` |
+| `README.md` advertises 306 effects | Registry and `app.capabilities` report 307 | `README.md:121`; `docs/effects.md:6`; `crates/engine/src/commands/query.rs:181-202`; `crates/effects/src/lib.rs:485-529` |
+| Bundle declares a QOI image type | `STILL_EXTENSIONS` does not include `qoi`; no code path references it | `packaging/macos/Info.plist.in:112-123`; `crates/media/src/lib.rs:62-63` |
+
+## Environment checks
+
+| Check | Result | Evidence |
+|---|---|---|
+| Installed version / build | 0.11.1, commit `2a01226894c6bc58ae4fadcc24a10198d693acaa` | `/Applications/EffectCraft.app/Contents/Info.plist` (`CFBundleShortVersionString`, `EffectCraftBuildCommit`) |
+| Architecture / minimum OS | universal `x86_64` + `arm64`; macOS 11.0 | `file` on `Contents/MacOS/EffectCraft`; `LSMinimumSystemVersion` |
+| CLI inside the bundle | absent — only `EffectCraft` in `Contents/MacOS` | bundle listing; `docs/agents.md` macOS row |
+| GUI launched during authoring | no | — |
+
+## How to spot-check
+
+```sh
+git rev-parse HEAD
+rg -n "pub const SCHEMA_VERSION|SCHEMA_VERSION" crates/project/src/lib.rs
+rg -n "pub const ALL: \[OutputFormat; 13\]" crates/project/src/render_queue.rs
+rg -n "307 registered|307 effects" docs/effects.md crates/engine/src/commands/query.rs
+rg -n "name: \"|bridge_only: true" crates/automation/src/tools.rs
+rg -n "aep|aepx|mogrt|ffx" crates apps --glob '!**/tests/**'
+```

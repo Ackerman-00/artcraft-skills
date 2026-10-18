@@ -1,286 +1,285 @@
 ---
 name: wordcraft
 description: >-
-  WordCraft is a native, pure-Rust word processor — a clean-room, open-source reimplementation of
-  Microsoft Word with ribbon UI, .docx read/write, PDF/PNG export, and first-class scripting.
-  Trigger this skill whenever anyone mentions WordCraft by name; asks to create, open, edit,
-  convert, compare, proof, print or export a word-processing document (.docx, .docm, .dotx/.dotm,
-  .doc, .odt, .rtf, .html, .md, .tex, .txt, .json, .xml, PDF, page PNG); wants to automate a word
-  processor, batch-convert documents, drive an editor headlessly via CLI/MCP/control channel, or
-  have an AI agent write/review a document with tracked changes; asks about WordCraft's
-  capabilities, file formats, keyboard shortcuts, commands or limitations; or needs to verify,
-  repair or troubleshoot a WordCraft file or export. Even if the user never names the app:
-  "edit this .docx and export a PDF", "convert these RTF files to Markdown", "add a table of
-  contents to this report" → this skill.
+  WordCraft is an open-source, clean-room reimplementation of Microsoft Word in Rust (alpha,
+  v0.8.0): a ribbon word processor that reads and writes .docx and exports PDF, plus a CLI
+  (wordcraft-cli), an MCP server and a localhost JSON control channel for agents. Trigger this
+  skill whenever the user mentions WordCraft, .docx/.doc/.odt/.rtf/.html/.md/.tex documents in a
+  WordCraft context, the wordcraft-cli tool, WordCraft's MCP tools or control channel, macros,
+  templates, mail merge, track changes, or asks what WordCraft can or cannot do, which formats it
+  opens/saves, how to script, automate, batch-convert, verify, repair or troubleshoot it — even if
+  the app is not named but the job is word-processor work ("write a .docx", "convert this .doc to
+  PDF", "add comments and track changes", "mail-merge a letter", "make a report from Markdown").
+  Do not use it for Microsoft Word itself or other word processors.
 ---
 
 # WordCraft
 
 ## Overview
 
-WordCraft is an open-source, clean-room reimplementation of Microsoft Word, rebuilt from public
-specifications in pure Rust — "Writing and document design" with Word's ribbon, styles, tables,
-track changes, references and mail merge (`README.md:13-21`). It is a Rust workspace (v0.7.0,
-MIT OR Apache-2.0, `Cargo.toml:7-11`) at <https://github.com/storytold/wordcraft>, currently in
-**alpha**: it covers ~97% of Word's ribbon features with commands (487/502,
-`docs/parity-checklist.md:5`) but self-estimates only **~60% "ready for real work"**
-(`ROADMAP.md:21`). It ships natively on macOS/Windows/Linux/BSD and in the browser via
-WebAssembly (`README.md:19`). The installed app at `/Applications/WordCraft.app` is **0.6.1**
-while this repo is HEAD **0.7.0** — *verify against your installed version*; behaviour below is
-from HEAD unless stated.
+WordCraft is an open-source, clean-room reimplementation of Microsoft Word (Microsoft 365) in pure
+Rust — "writing and document design" — by the ArtCraft team (README.md:13, README.md:370–378).
+It is at **alpha** (ROADMAP.md:3, ROADMAP.md:44–52), self-rated ~60% "ready for real work" and
+~55% for a mainstream practitioner's weekly work (ROADMAP.md:21–22), with **487 of 502**
+ribbon/menu catalog features wired to live commands (97.0%; docs/parity-checklist.md:5).
+One codebase serves macOS, Windows, Linux, BSD and the web: egui/eframe on the GPU, no Electron
+(Cargo.toml:75–82, README.md:96–97). The source lives at GitHub **storytold/wordcraft** under
+MIT OR Apache-2.0 (Cargo.toml:9, README.md:362). It is independent of Microsoft: it reads and
+writes their formats from the published specifications (ECMA-376/ISO 29500, MS-DOC, OASIS ODF).
+
+Everything user-visible is a **command with an id**; the ribbon, keyboard, command search, CLI,
+control channel and MCP all dispatch the same registry (README.md:98–100,
+`crates/engine/src/cmd/mod.rs::registry`).
 
 ## Capabilities (verified)
 
-Every user-visible action is a command with an id. The registry is built in
-`crates/engine/src/cmd/mod.rs:58` (`registry()`, one module per area, 617 `CommandSpec::new`
-ids at HEAD); the same ids drive the ribbon, shortcuts, `wordcraft-cli`, the MCP server and the
-control channel (`README.md:98-100`). `wordcraft-cli commands` prints the live list with each
-id's label, shortcut and ribbon location (`apps/wordcraft-cli/src/main.rs:292-306`).
+### Editing, formatting, document features
+- Writing: typing/IME, AutoCorrect, list autoformat, selections, clipboard with formatting,
+  undo/redo, find & replace incl. regex (README.md:109; typing behaviour pinned by
+  `crates/engine/src/tests_typing.rs`, see AGENTS.md "Typing behaves like Word").
+- Formatting, paragraphs, styles/themes, lists, tables (styles, merge/split, sort, formulas),
+  pages/sections (margins, columns, headers/footers, watermark, line numbers, hyphenation),
+  objects (pictures with crop/recolour/background removal, shapes, text boxes, wrap, rotation),
+  references (TOC, footnotes/endnotes, citations APA/MLA/Chicago/IEEE, captions, index),
+  review (spelling/grammar, comments, track changes, accept/reject, compare, restrict editing),
+  mail merge from CSV/spreadsheets, and View modes with 21 interface languages (README.md:110–121).
+  One command per feature in `crates/engine/src/cmd/*.rs` (49 modules).
+- Command count: the repo states different totals in different docs — README.md:98 says 422,
+  ROADMAP.md:26 says 433, docs/mcp.md:85 says "over 270". Do not quote a number; list them:
+  `wordcraft-cli commands [--json]` (`apps/wordcraft-cli/src/main.rs:411–425`).
 
-### Editing and formatting core
-- **Writing**: typing, IME, smart quotes, AutoCorrect/AutoFormat, `=rand()`/`=lorem()` expansion;
-  typing behaviour is pinned to Word's observed behaviour in `docs/typing-parity.md` and
-  `crates/engine/src/tests_typing.rs`. Commands: `crates/engine/src/cmd/text.rs`,
-  `cmd/caret.rs`, `cmd/edit.rs` (undo/redo incl. `edit.undoTo`/`edit.undoHistory`),
-  `cmd/paste.rs`.
-- **Character and paragraph formatting**: fonts, sizes, bold/italic/underline/strike, sub/sup,
-  caps, highlight, colours, spacing; alignment, indents, spacing, tabs, borders, shading.
-  `cmd/format.rs`, `cmd/font.rs`, `cmd/para.rs`; the full `CharProps`/`ParaProps` JSON schema is
-  documented in `docs/mcp.md:101-178`.
-- **Styles, themes, lists**: built-in style set, gallery, Styles pane, `styles.modify`; bullets,
-  numbering, multilevel. `cmd/lists.rs`, `cmd/design.rs`; `crates/doc`.
-- **Tables**: insert, merge/split, styles, banded rows, borders, header-row repeat, sort,
-  formulas, text↔table, Draw Table/Eraser, mouse resize. `cmd/table.rs`, `cmd/table_style.rs`,
-  `cmd/table_draw.rs`, `cmd/table_resize.rs`, `cmd/table_mouse.rs`.
-- **Pages/sections**: margins, orientation, columns, breaks, headers/footers, page numbers,
-  watermark, line numbers, drop caps, hyphenation. `cmd/page.rs`, `cmd/column.rs`.
-- **Objects**: pictures (crop, recolour, styles, rotate), shapes, text boxes, WordArt,
-  connectors, drawing canvas, ink (pen/highlighter/lasso/Ink-to-Shape), charts and SmartArt made
-  in WordCraft. `cmd/objects.rs`, `cmd/wordart.rs`, `cmd/connectors.rs`, `cmd/canvas.rs`,
-  `cmd/draw.rs`, `cmd/chart.rs`, `cmd/smart_art.rs`; WMF/EMF insertion via `crates/metafile`.
-- **References**: TOC, footnotes/endnotes, citations + bibliography (12 styles), captions, index,
-  cross-references. `cmd/references.rs`, `cmd/citations.rs`, `cmd/index.rs`, `cmd/fields.rs`.
-- **Review**: comments in margin balloons, track changes (incl. formatting revisions and move
-  tracking), accept/reject, compare, restrict editing, spelling/grammar/thesaurus, word count.
-  `cmd/review.rs`, `cmd/protect.rs`, `cmd/inspector.rs`, `cmd/accessibility.rs`; proofing in
-  `crates/proof`.
-- **Mailings**: mail merge from CSV/TSV, typed lists, and Excel/OpenDocument spreadsheets;
-  envelopes and labels. `cmd/mailings.rs`; spreadsheet cells read by `crates/formats/src/sheet.rs`.
-- **View/UI**: print/web/draft/outline/read modes, zoom, Navigation pane, dark mode, interface in
-  18 languages (most translated ~95%). `cmd/view.rs`, `cmd/outline.rs`, `cmd/options.rs`,
-  `crates/ui-egui`.
+### Import / open (by extension, `crates/engine/src/io.rs:9–29` OPEN_EXTS)
+- `.docx` / `.docm` / `.dotx` / `.dotm` (Word package; Strict Open XML read via namespace
+  mapping), `.doc` / `.dot` (Word 97-2003 binary reader, `crates/docbin`), `.txt`, `.md`,
+  `.markdown`, `.html`/`.htm`, `.rtf`, `.odt`, `.tex`/`.latex`/`.ltx`, `.xml`
+  (Word XML Document / Flat OPC or Word 2003 XML, told apart by root element), `.json`
+  (WordCraft's native document model), and `*.wcraft.json`.
+- Extensionless or unknown-extension files open **by content** if they are Word/RTF/text,
+  with encoding detection; binary files are refused with an error
+  (`crates/engine/src/io.rs:250–302`, `crates/formats/src/txt.rs`).
+- Pictures: PNG, JPEG, GIF, WebP, BMP, WMF/EMF. Not SVG, TIFF, ICO, HEIC
+  (docs/file-format-parity.md:58).
 
-### File formats (open → save)
+### Save / native format / export (`crates/engine/src/io.rs:31` SAVE_EXTS)
+- Native-lossless: `.docx`/`.docm`/`.dotx`/`.dotm` via `crates/docx` (`write_as`, package flavour
+  from the extension), plus Word XML Document (Flat OPC) and Word 2003 XML `.xml`
+  (`crates/docx/src/flat.rs`, `wordml2003_write.rs`), and `.json` for agents
+  (`crates/engine/src/io.rs:305–334`; dispatch in `crates/engine/src/io_ext.rs`).
+- Copies/export: `.pdf` (krilla through the pinned `craft-pdf`, README.md:191–192,
+  Cargo.toml:55), `.png` page images, `.txt`, `.md`, `.html`, `.rtf`, `.odt`, `.tex`
+  (`crates/formats`, partial fidelity — see limitations).
+- Password: `.docx`-family packages save agile-encrypted and open with a password
+  (`crates/docx/src/crypt.rs`); `.doc` password support is documented inconsistently across
+  rows (see evidence.md — uncertain, read `docs/file-format-parity.md` rows 52–55 yourself).
+- Print Markup (`--markup` / `markup: true`): comments and tracked changes in PDF/PNG, a comment
+  list in HTML/Markdown/text (`crates/engine/src/io.rs:50–62`).
 
-Dispatch is by extension in `crates/engine/src/io.rs` — `OPEN_EXTS` at line 9, `SAVE_EXTS` at
-line 31 — routed in `crates/engine/src/io_ext.rs:6-38`:
-
-| Format | Read | Write | Handler | Notes |
-|---|---|---|---|---|
-| `.docx` (also `.docm`, `.dotx`, `.dotm`) | yes | yes | `crates/docx` (`read`/`write_as`) | Fidelity ~65%; never tested on a real-world corpus (`docs/gaps.md` #1); macros preserved, never run |
-| `.doc`/`.dot` (Word 97-2003) | partial | **no** | `crates/docbin` (read-only, `lib.rs:73`) | No writer; Word 6/95 and RC4/XOR-encrypted refused (`docs/gaps.md` #14) |
-| `.pdf` | **no** | yes | `wordcraft_pdf::export` (`crates/pdf/src/lib.rs:97`) | Selectable text, links, bookmarks; Print Markup with comment balloons; no PDF/A |
-| `.png` page image | — | yes | `io_ext.rs:42` (`render_png`), `file.exportPng` | `page` (1-based), `scale` px/pt |
-| `.odt` | partial | partial | `crates/formats/src/odt.rs` | ~50%: no footnotes, comments, tracked changes, fields or RTL (`docs/file-format-parity.md`) |
-| `.rtf` | partial | partial | `crates/formats/src/rtf.rs` | ~50%; thin on comments, notes, revisions, sections |
-| `.html`/`.htm` | partial | partial | `crates/formats/src/html.rs` | Tables, relative pictures (read from beside the file, sandboxed), MathML equations; no Word "Web Page + `_files`" round trip |
-| `.md`/`.markdown` | yes | yes | `crates/formats/src/markdown.rs` | CommonMark subset + GFM tables/strikethrough |
-| `.tex`/`.latex`/`.ltx` | yes | yes | `crates/formats/src/latex.rs` | Includes math |
-| `.txt` | yes | yes | `crates/formats/src/txt.rs` | Encoding detection; any text file opens by content (#569) |
-| `.json` (document model) | yes | yes | serde on `wordcraft_doc::Document` (`io.rs:122`) | For agents; not a Word format |
-| `.xml` Flat OPC (Word XML Document) | yes | yes | `crates/docx` (`read_xml`, `write_flat`) | Format told apart by root element |
-| `.xml` Word 2003 XML | partial | partial | `crates/docx/src/wordml2003*.rs` | Write drops shapes, text boxes, charts, SmartArt, ink, equations, OLE (`docs/file-format-parity.md`); never opened in Word yet |
-
-Also: `.wcraft.json`-style names are just `.json`; encrypted/password-protected **.docx** opens
-and saves with `password` via ECMA-376 agile encryption (`crates/docx/src/crypt.rs:58`,
-`io.rs:109-115`, `file.encrypt` in `cmd/file.rs:48`) — note `docs/gaps.md` #9 still (stale) lists
-this as missing, and only Word-package extensions can be encrypted (`io.rs:96`).
-
-### Automation surfaces (verified, all wired)
-- **CLI** `wordcraft-cli` (`apps/wordcraft-cli/src/main.rs:13-46` documents every flag):
-  `convert <in> <out> [--markup] [--format wordml2003|flatopc]`, `info`, `text`, `inspect`,
-  `render <file> <out.png> [--page N] [--scale S]`, `run [--file F|--template T]
-  --cmd 'id={json}'… [--save OUT] [--print] [--author NAME]`, `commands [--json]`,
-  `parity [--markdown]`, `mcp`, `zotero`, `--version`.
-- **MCP server** over stdio (`crates/mcp/src/tools.rs:171-270`, `docs/mcp.md:83-97`). Headless:
+### Automation surfaces (all four drive the same commands)
+- **CLI**: `wordcraft-cli convert|info|text|inspect|render|run|commands|parity|mcp|zotero`
+  with flags `--markup`, `--format wordml2003|flatopc`, `--page`, `--scale`, `--file`,
+  `--template`, `--cmd 'id={json}'`, `--save`, `--print`, `--author`, `--json`, `--markdown`,
+  `--connect`, `--automation-read-root`, `--automation-write-root`, and Zotero's `--trace`,
+  `--port` (`apps/wordcraft-cli/src/main.rs:15–57` is the authoritative usage text).
+- **MCP server** over stdio: `wordcraft-cli mcp` (headless) or
+  `wordcraft-cli mcp --connect 127.0.0.1:<port>` (bridged to a running app). Tools:
   `list_commands`, `execute`, `batch`, `new_document`, `open_document`, `save_document`,
-  `type_text`, `select_text`, `get_text`, `inspect_document`, `render_page`, `parity`. App-only
-  (with `--connect`): `screenshot`, `click`, `key`, `ui_inspect`.
-- **Control channel**: `wordcraft --control <port>` speaks JSON-lines on 127.0.0.1 with a key
-  file (`apps/wordcraft/src/control_server.rs`, `docs/control-protocol.md`). Methods:
-  `engine.execute`, `engine.commands`, `document.inspect`, `ui.inspect`, `ui.click`,
-  `ui.clickText`, `ui.move`/`ui.drag`, `ui.press`/`ui.release`, `ui.wheel`, `ui.key`, `ui.text`,
-  `ui.screenshot`, `ui.render`, `ui.parity`, `ui.resize`/`ui.focus`, `app.quit`.
-- **Macros**: record/run any command sequence — `tools.recordMacro`, `tools.macros`
-  (`crates/engine/src/cmd/tools.rs:349-363,724-750`).
-- **Zotero**: live citation integration through the running Zotero desktop app
-  (`crates/zotero`, `docs/zotero.md`); headless via `wordcraft-cli zotero <command> <file>`.
-- **Templates**: `file.new` takes `blank|sample|letter|resume|report`
-  (`crates/engine/src/cmd/file.rs:149-153`).
-- **Web (WASM)**: same app in the browser — `apps/wordcraft-web` (`trunk serve`, port 8771,
-  `Trunk.toml:10`). Differences verified in `apps/wordcraft-web/src/main.rs:5-10`: no TCP control
-  channel; open/pictures use the browser picker; save/export download.
-- **Native printing** through craft-print on macOS/Windows/Linux (`apps/wordcraft/src/print.rs`;
-  dependency `apps/wordcraft/Cargo.toml:70`), plus `file.printPdf` and browser printing.
+  `type_text`, `select_text`, `get_text`, `inspect_document`, `render_page`, `parity`, and
+  app-only `screenshot`, `click`, `key`, `ui_inspect` (`crates/mcp/src/tools.rs:55–155`;
+  docs/mcp.md:81–100). Resources: `wordcraft://document`, `wordcraft://commands`.
+- **Control channel**: app started with `--control <port>`; JSON lines over `127.0.0.1` with a
+  per-window key from `<settings>/control-key.local-<port>` (macOS settings folder:
+  `~/Library/Application Support/WordCraft`). Methods include `engine.execute`,
+  `engine.commands`, `document.inspect`, `ui.inspect`, `ui.click`, `ui.key`, `ui.text`,
+  `ui.screenshot`, `ui.render`, `ui.parity`, `app.quit` (`docs/control-protocol.md:51–72`,
+  `crates/control-key/src/lib.rs`).
+- **Macros**: `tools.recordMacro` / `tools.macros` record and replay command sequences
+  (crates/engine/src/cmd/tools.rs:349–363; README.md:162–163).
+
+### Platform
+- WebAssembly web build exists and is CI-checked: `apps/wordcraft-web` (`trunk build --release`,
+  `?sample`, `?webgl` URL flags; no TCP control channel, Open/Save go through the browser,
+  apps/wordcraft-web/src/main.rs:1–8); `cargo xtask wasm` checks L0–L5 + the egui shell for
+  wasm32 (xtask/src/main.rs:124–153).
+- Local recovery of unsaved work (desktop only), `recovery/` under the profile folder,
+  inspectable via `file.recover` (docs/recovery.md).
+- Native printing through craft-print: `ui.printSettings`, `ui.printSubmit`, `file.printPdf`,
+  `file.print` (docs/control-protocol.md:88–103).
+- Zotero integration (`crates/zotero`, docs/zotero.md) — needs the Zotero desktop app running.
 
 ## Known limitations and not-implemented
 
-Do not assign these without checking `docs/gaps.md` (ranked work list) and `ROADMAP.md`. The
-biggest verified blockers as of the docs' last review (2026-10-10…13; HEAD may be ahead):
+Ranked shortfalls with evidence are in **docs/gaps.md** — read it before promising anything.
+The blocking (beta) list, gaps #1–#7:
 
-- **Real-world `.docx` is untested** — no corpus of Word/Google Docs/LibreOffice files has been
-  opened and compared with Word; field reports have found fallout one by one (`docs/gaps.md` #1).
-  Never promise "Word will show this identically".
-- **Pagination differs from Word** — no Aptos-metric substitute, legacy compatibility options
-  ignored; do not promise identical page counts or line breaks (`docs/gaps.md` #4).
-- **Charts/SmartArt/OLE from Word are read-only** (shown from cached data or as a picture; OLE
-  can't be opened); unsupported chart types (radar, stock, 3-D…) show a placeholder; 3D models
-  are dropped on open; remaining Word-native ink forms are preserved but not rendered or edited
-  (`docs/gaps.md` #2, #12, #13).
-- **Stability is alpha-grade** — startup crash on some Intel UHD graphics, hang reports, etc.
-  (`docs/gaps.md` #3). Save on a copy and keep backups; see Verification protocol.
-- **`.doc` cannot be written**; Word 6/95 refused (`docs/gaps.md` #14). No MHT, Works/WordPerfect,
-  no PDF Reflow (`docs/gaps.md` #23, #26); Strict OOXML is read but not written.
-- **Proofing exists only for English, Polish, Portuguese (pt-BR) and Italian**; text in other
-  languages is left unmarked (`docs/gaps.md` #8).
-- **Incomplete feature depth**: tracked style-definition changes and content-control data
-  binding; custom XML binding evaluation; form fields (`w:ffData`); bibliography sources not
-  saved in `.docx` (#169); RTF/ODT thin; RTL and East Asian areas partial; ~135 of Word's ~250
-  default shortcuts; 54 dialogs vs Word's ~100; no Side by Side windows, no Dictate
-  (`docs/gaps.md` #5, #10, #11, #15–#19, #24, #27, #28).
-- **No VBA execution, add-ins, cloud storage or co-authoring**; `.docm` macros are preserved but
-  never run (`docs/gaps.md` #22). No in-app AI assistant (#25). Screen-reader exposure exists
-  but has not been tried with real screen readers (#18).
-- **UI shape**: one window, **one document** — `file.open` replaces the current document
-  (`crates/engine/src/cmd/file.rs` `open` → `Session::set_document`); no tabs or multiple
-  windows.
-- **Web build**: no control channel, no filesystem — files enter/leave through the browser.
+1. **DOCX never tested on real-world files** (no corpus; synthetic fixtures only) — the files
+   people receive are the files that break (docs/gaps.md:27).
+2. **Silent content loss on open+save**: remaining native ink forms are dropped; charts, SmartArt
+   and OLE objects survive saves but cannot be edited (docs/gaps.md:30).
+3. **Field crashes and freezes** on some GPUs/fonts; 197 open issues as of 2026-10-12
+   (docs/gaps.md:28).
+4. **Pagination differs from Word** (no Aptos-metric font, legacy compatibility options partial,
+   no page-by-page comparison harness) (docs/gaps.md:29).
+5. Content controls work, but drag-and-drop move tracking, tracked style/table/section changes,
+   and custom-XML binding evaluation are missing (docs/gaps.md:31).
+6. Print dialog depth (driver tray/options, pages per sheet) (docs/gaps.md:32).
+7. 54 modal dialogs vs Word's ~100 (docs/gaps.md:33).
+
+Other verified gaps:
+- **Charts/SmartArt from Word are read-only**; no embedded-workbook editing; no combo/3D/radar/
+  stock charts (placeholders shown) (docs/gaps.md:39, docs/file-format-parity.md:89).
+- **`.doc` is read-only** — WordCraft never writes Word 97-2003 (crates/docbin/src/lib.rs:3–4);
+  Word 6/95 files are refused. **No PDF Reflow**, no MHT, no Works/WordPerfect (docs/gaps.md:40,49,53).
+- **No VBA execution** (macros in .docm are preserved, never run), no Office add-ins, no cloud
+  storage, no real-time co-authoring (docs/gaps.md:48, docs/file-format-parity.md:40).
+- **3D models dropped**; legacy `w:ffData` form fields, glossary/building blocks and
+  `w:eastAsianLayout`/`w:fitText` are not read or written (docs/file-format-parity.md:92,81,101,100).
+- **Writing fidelity is partial for the non-DOCX formats**: RTF and ODT ~50%, HTML ~60%,
+  Word 2003 XML write drops shapes/charts/equations etc. (docs/file-format-parity.md:44–50).
+  MHT is not supported at all.
+- **Proofing languages**: English, Polish, Portuguese, Italian, Croatian, Turkish and Russian
+  (plus Czech spelling); everything else is left unmarked (docs/gaps.md:35).
+- **RTL/East Asian depth** is incomplete (docs/gaps.md:42–43).
+- Mail merge: CSV/TSV/TXT and `.xlsx/.xlsm/.xls/.ods` only; no Outlook/Access/database sources,
+  no email merge (docs/gaps.md:47; `crates/formats/src/sheet.rs`).
+- No in-app AI assistant (agent control is external, over CLI/MCP) (docs/gaps.md:51).
+- The **desktop app's automation is not confined**: `--automation-read-root`/
+  `--automation-write-root` apply to the headless MCP server only (docs/mcp.md:66–68).
 
 ## How to operate
 
-### Launch (macOS)
-```sh
-open -a WordCraft                       # installed 0.6.1 app (Start screen)
-open -a WordCraft --args --sample       # sample document ("The Open Studio Handbook")
-open -a WordCraft --args report.docx    # open a document
-# binary directly: /Applications/WordCraft.app/Contents/MacOS/WordCraft
-```
-Desktop flags (`apps/wordcraft/src/main.rs:236-254`): `--control <port>` (or env
-`WORDCRAFT_CONTROL_PORT`), `--sample`, `--version`, and any other argument = file to open.
-macOS settings live in `~/Library/Application Support/WordCraft/`: `ui.json` (preferences),
-`control-key.local-<port>` (control key, mode 0600, deleted on exit), `logs/wordcraft.log`
-(rotating; attach to bug reports), `fonts/` (user-added fonts), `custom-dictionary.txt`.
-`WORDCRAFT_NO_PREFS=1` runs a test instance that neither reads nor writes preferences.
-`RUST_LOG` selects log levels (`README.md:178-182`).
+Launch (macOS):
+- App: `open -a WordCraft` or `open -a WordCraft --args <file.docx>`. Binary:
+  `/Applications/WordCraft.app/Contents/MacOS/WordCraft`. Bundle id `ai.storyteller.wordcraft`.
+- App flags (Apps/wordcraft/src/main.rs:266–278): `wordcraft [--sample] [--control PORT] [FILE…]`;
+  `--version`, `-h|--help`. A bad `--control` port exits with status 2.
+- **`wordcraft-cli` is not inside the app bundle** (nothing on PATH on the reference machine).
+  Get it from the release artifact `wordcraft-cli-<ver>-macos-universal.zip`
+  (README.md:260, packaging/macos/package.sh:44–66) or build it:
+  `cargo run --release -p wordcraft-cli -- <args>`.
+- Useful environment variables: `WORDCRAFT_CONTROL_PORT`, `WORDCRAFT_PROFILE_DIR` (isolated
+  profile incl. recovery/keys), `WORDCRAFT_NO_PREFS` (agents' test runs; no prefs, no recovery,
+  no key file — docs/recovery.md:20–25), `WORDCRAFT_REGION=en-US` (paper size on headless runs),
+  `RUST_LOG` (README.md:178–182), `WGPU_BACKEND` (Windows graphics troubleshooting only,
+  README.md:223–240).
 
-### Headless CLI (docs' own tool; build from this repo or download the signed zip)
-```sh
-wordcraft-cli convert report.docx report.pdf          # formats: docx doc pdf odt rtf html md tex txt json png xml
-wordcraft-cli convert report.docx out.html --markup   # Print Markup: comments appended
-wordcraft-cli text report.docx                        # plain text (list labels kept)
-wordcraft-cli inspect report.docx                     # structure as JSON
-wordcraft-cli render report.docx page1.png --page 1 --scale 2.0
-wordcraft-cli run --template letter --author "Claude (copyedit)" \
-  --cmd 'text.insert={"text":"Dear Ada,"}' --cmd 'format.bold' --save out.docx
-wordcraft-cli commands --json                         # every command + params docs
-```
-Exit status is 0/1; errors go to stderr as `wordcraft-cli: <message>`. Unknown flags are
-rejected before any file access (`apps/wordcraft-cli/src/main.rs:478-482`).
+Document model: **one document per window, no tabs** — `WordApp` holds a single
+`Session`/document (crates/ui-egui/src/lib.rs:420–421); Document-to-document windows (Side by
+Side, Arrange All) are a known gap (docs/gaps.md:52).
 
-### Agent bridge (MCP)
-```sh
-claude mcp add wordcraft -- wordcraft-cli mcp            # headless documents
-wordcraft --control 7981 &                               # or drive the running app:
-claude mcp add wordcraft-app -- wordcraft-cli mcp --connect 127.0.0.1:7981
-```
-Confine the headless server with `--automation-read-root DIR --automation-write-root DIR`
-(a root left out grants no access of that kind; an error with `--connect`) —
-`docs/mcp.md:27-79`. Name the agent's edits with `--author "Claude (copyedit)"` and turn tracking
-on explicitly with `review.trackChanges {"value": true}` (`docs/mcp.md:18-26`). Verify work with
-`get_text`/`inspect_document` instead of screenshots wherever possible.
+Core commands (exact ids, from `crates/engine/src/cmd/file.rs:64–123`):
+`file.new {"template": "blank|sample|letter|resume|report"}`, `file.open {"path": …, "password"?}`,
+`file.save {"path"?, "password"?, "markup"?, "format"?}`, `file.saveAs`,
+`file.exportPdf {"path": …, "markup"?}`, `file.exportPng {"path":…, "page"?, "scale"?}`,
+`file.printPdf {"path", "range"?, "pages"?, "parity"?, "copies"?, "collate"?}`,
+`file.close {"force"?}` (control channel/MCP: without `force` an unsaved document errors instead
+of prompting — docs/control-protocol.md:79–86), `file.setAuthor {"name"}`,
+`document.inspect`, `document.text`, `review.trackChanges {"value": true}`.
 
-### Control channel example
+CLI recipes (verified usage strings, apps/wordcraft-cli/src/main.rs:15–57):
 ```sh
-wordcraft --control 7981 &
-KEY=$(cat ~/Library/Application\ Support/WordCraft/control-key.local-7981)
-printf '%s\n' \
- "{\"id\":1,\"key\":\"$KEY\",\"method\":\"engine.execute\",\"params\":{\"command\":\"text.insert\",\"params\":{\"text\":\"Hello\"}}}" \
- "{\"id\":2,\"key\":\"$KEY\",\"method\":\"ui.render\",\"params\":{\"path\":\"/tmp/page1.png\",\"page\":1}}" \
- | nc 127.0.0.1 7981
+wordcraft-cli convert report.docx report.pdf        # docx, doc [read], pdf, odt, rtf, html, md, tex, txt, json, png, xml
+wordcraft-cli convert in.docx out.png               # page 1 only, via file.exportPng
+wordcraft-cli render report.docx out.png --page 2 --scale 2   # scale defaults to 2.0, page to 1
+wordcraft-cli text report.docx                      # plain text, list labels kept
+wordcraft-cli info report.docx                      # pages, words, paragraphs, properties (JSON)
+wordcraft-cli inspect report.docx                   # structure as JSON
+wordcraft-cli run --template sample --cmd 'select.text={"text":"Membership"}' \
+  --cmd format.bold --save out.docx
+wordcraft-cli run --file in.docx --cmd edit.undo --cmd 'file.exportPdf={"path":"out.pdf"}'
+wordcraft-cli commands --json                       # every command id, label, params, shortcut
+wordcraft-cli mcp --author "Claude (copyedit)" \
+  --automation-read-root /work/project --automation-write-root /work/project/out
+wordcraft-cli zotero refresh paper.docx --save paper.docx
 ```
-Each line gets one JSON reply; a failed command leaves the document unchanged
-(`docs/control-protocol.md:7-14`). Limits: 1 MiB/line, 30 s to authenticate, key required on
-every request.
+Exit status: 0 on success (a closed stdout pipe also exits 0), 1 on error with the message on
+stderr (`apps/wordcraft-cli/src/main.rs:558–567`). Failures never leave a half-written output file
+for `render`/`run --save` (tested, main.rs:869–892).
 
-### Core concepts
-- **One document per window**; File (Backstage) holds New/Open/Save As/Export/Print and the
-  Start screen (`crates/ui-egui/src/backstage.rs`).
-- **Save vs export**: `file.save`/`file.saveAs` write the document's own format (.docx family,
-  .odt, .rtf, .xml, .json keep everything — `crates/ui-egui/src/lib.rs:1792`); PDF/PNG/HTML/MD/
-  TXT are copies that leave the document unsaved. AutoSave only works for the "keeps everything"
-  extensions and a saved path; it is greyed out with a reason otherwise
-  (`crates/ui-egui/src/chrome.rs:225-250`).
-- **Print Markup** (`file.printMarkup` or `markup: true` on saves): tracked changes marked up,
-  comments in balloons beside PDF/PNG pages, comment list at the end of HTML/MD/TXT copies.
-- **Passwords**: `file.encrypt` sets/changes a save password on Word-package formats only;
-  opening an encrypted file with the wrong/missing password returns a specific error
-  (`io.rs:86-98`).
-- **Logs**: a start from Finder has no terminal; `logs/wordcraft.log` is the bug-report artifact
-  (`README.md:165-176`).
-- **Version check**: this skill describes HEAD (0.7.0); the installed app is 0.6.1 and may lack
-  commands added since — before relying on a specific command, confirm it exists with
-  `wordcraft-cli commands --json` (or `engine.commands`).
+Driving the running app (control channel):
+```sh
+open -a WordCraft --args --control 7981
+cat ~/Library/Application\ Support/WordCraft/control-key.local-7981
+# then one JSON object per line to 127.0.0.1:7981, e.g.
+{"id":1,"key":"<key>","method":"engine.execute","params":{"command":"text.insert","params":{"text":"Hello"}}}
+{"id":2,"key":"<key>","method":"ui.screenshot","params":{"path":"/tmp/shot.png"}}
+```
+An unauthorised request gets `{"ok":false,"error":"unauthorized"}` and the connection closes
+(docs/control-protocol.md:36–42). Open/Save/Export flow: formats are chosen by file extension, in
+both the CLI and the app (crates/engine/src/io.rs:38–48); `--save`/`file.save` over an existing
+file replaces it in place (save-path guarantees: docs/file-format-parity.md "native save path").
+
+Reading the app's own diagnostics: `~/Library/Application Support/WordCraft/logs/wordcraft.log`
+(rotated to `.1`/`.2`, capped at 16 MiB; `--version` writes nothing; `WORDCRAFT_NO_PREFS` runs log
+to stderr only — README.md:165–182). Unreadable .docx parts, pictures/fonts a PDF export left
+out, and recovered panics land there.
 
 ## Working with an AI agent
 
-Legitimate and useful:
-- **Write and review documents headlessly** through `wordcraft-cli run`, `mcp`, or the control
-  channel on a *copy*. Chained commands are the intended pattern:
-  `select.text={"text":"Membership"}` → `format.bold` → `file.save`.
-- **Prepare inputs**: generate `.md`/`.html`/`.txt`/`.rtf`/`.csv` (mail merge) and import them;
-  batch-convert a folder with `wordcraft-cli convert` (loop per file).
-- **Round-trip and verify**: `inspect` (JSON structure) and `text` for exact reads, `render`
-  for a page image; check `file.info` (`pages`, `words`, `paragraphs`) after edits.
-- **Track agent edits**: `--author` / `file.setAuthor` + `review.trackChanges {"value": true}`
-  so a human can review them in WordCraft or Word.
-- **Repair/transform native files**: the `.json` document model is serde-serialisable and open
-  (`io.rs:122`); also repair by convert-to-docx. Confine file access with the automation roots.
-- **Zotero workflows** via `wordcraft-cli zotero` when Zotero desktop is running.
+Legitimate, reliable agent work with WordCraft:
+- **Do document work headlessly.** `wordcraft-cli mcp` (or `wordcraft-cli run --cmd …`) needs no
+  window, no focus and no GUI driving. Verify your own work with `inspect_document` / `get_text` /
+  `render_page` instead of screenshots (docs/mcp.md:92–95).
+- **Prepare inputs**: write Markdown/HTML/CSV/text in the shell and bring it in
+  (`open_document`, `insert.textFromFile`, `mailings.recipients` for `.csv/.tsv/.txt` with
+  encoding detection and `.xlsx/.xlsm/.xls/.ods`, `insert.picture` with a path or base64 bytes).
+- **Produce deliverables**: convert/export to PDF/ODT/RTF/HTML/MD/tex/txt/PNG from the CLI, and
+  hand the `.docx` on for Word (README.md:92–93).
+- **Attribute your edits**: pass `--author "Claude (copyedit)"` (or `file.setAuthor`) so reviewers
+  can tell agent edits from people's, and turn tracking on explicitly with
+  `review.trackChanges {"value": true}` (docs/mcp.md:18–25).
+- **Confine yourself**: run the headless MCP server with `--automation-read-root`/
+  `--automation-write-root` (a missing root grants none of that access; paths are resolved with
+  links followed — docs/mcp.md:27–79).
+- **Repair/interpret native projects**: the native format is `.docx` itself; `.json` is the
+  engine's own model (media bytes and opaque parts included). Recovery snapshots are versioned
+  JSON under `recovery/` and only the last valid generation is guaranteed (docs/recovery.md).
+- **Do not**: drive the GUI blind by clicking at guessed coordinates — prefer commands; assume
+  SVG/TIFF/HEIC images load (they don't); assume `.doc` can be written (it can't); assume charts,
+  SmartArt, OLE, native ink or 3D models survive edits intact; assume `.docx` fidelity on
+  real-world files (gap #1); assume the headless session writes recovery copies (it doesn't).
+- **Watch two footguns**: `review.trackChanges` without `value` *toggles* (it can turn tracking
+  off in a document saved with it on); `file.close` over the control channel errors on unsaved
+  changes unless `{"force": true}` (which discards them).
 
-Do **not**:
-- Drive the GUI blind (scripted clicks/keys through `ui.*`) when a headless command does the job;
-  it's slower and brittle. GUI state can't be assumed if you didn't start the app.
-- Assume unsupported formats: no writing `.doc`, no encrypted `.doc`, no PDF import, no
-  `.mht`, no Strict OOXML write, no SVG/TIFF pictures, no spreadsheet number formatting.
-- Edit a file in place without a backup, or trust a silent export — see below.
-- Promise Word-identical pagination or DOCX fidelity on files you haven't round-tripped.
+Headless UI screenshots (no focus stealing, works with a locked screen):
+`cargo run --release -p wordcraft-ui-egui --example ui_shot -- script.jsonl`
+(JSON-line control requests plus `{"shot": "/abs/out.png"}`; crates/ui-egui/examples/ui_shot.rs).
 
 ## Verification protocol
 
-Alpha-software discipline:
-1. **Always work on a throwaway copy** (`cp -f` or `--automation-write-root` to a scratch dir);
-   version files per session (`report.v1.docx`) and keep the original untouched until verified.
-2. **Round-trip test before reporting success**: new/blank → edit → `file.save` to `.docx` →
-   reopen it (new process, `wordcraft-cli inspect`/`text`) → export the deliverable (PDF/PNG) →
-   inspect the files exist and are non-empty. Never trust a silent export: check exit status,
-   stderr, and the output file.
-3. **Compare against the source of truth** when fidelity matters: `wordcraft-cli text in.docx`
-   vs `text out.docx`, `inspect` JSON diff, or render the page and look at the PNG.
-4. **Update the app only between projects** (launcher auto-update; 0.6.1 installed vs 0.7.0
-   HEAD — an update can change commands and output).
-5. **When something breaks**: check `~/Library/Application Support/WordCraft/logs/wordcraft.log`
-   (the previous run's log is kept as `wordcraft.1.log`), do not lose the document — report the
-   command id, params, input file and log.
+Alpha software that never crashes by design but is unproven on real-world files: trust nothing
+you did not re-open.
+
+1. **Throwaway round-trip first**: new → type/format → save `.docx` → reopen → export `.pdf`,
+   all in a scratch directory (`wordcraft-cli run --template blank --cmd … --save t.docx`, then
+   `wordcraft-cli convert t.docx t.pdf`, then `wordcraft-cli inspect t.docx`).
+2. **Never trust a silent export**: the CLI prints `wrote <path>` only after the command returned
+   Ok (main.rs:330, 407); still check the file exists, is non-zero, and re-read it
+   (`wordcraft-cli text t.pdf` will not work — PDFs don't open; check the PDF elsewhere or render
+   the page with `wordcraft-cli render t.docx page.png` and look at the PNG).
+3. **Compare structure, not just text**: `inspect`/`document.inspect` shows styles, tables,
+   sections — use it to catch silent loss (the known failure mode is content dropped without a
+   warning; docs/gaps.md #1/#2).
+4. **Keep the user's original untouched**: work on a copy; WordCraft's save replaces the file in
+   place. Recovery copies exist for the desktop app only, are unencrypted, and the newest edits
+   before a crash can be lost (docs/recovery.md:27–31).
+5. **Version and back up** project files per session; update the app only between projects
+   (the launcher auto-updates; the version you script against may change).
 
 ## Sources & evidence
 
-- Repo: <https://github.com/storytold/wordcraft> · HEAD inspected:
-  `fc41918814f62645b6746ed68e71e8c2c2e85d6f` ("Release 0.7.0", 2026-10-14) · date read: 2026-10-14.
-- Key files: `README.md`, `ROADMAP.md`, `docs/gaps.md`, `docs/parity-checklist.md`,
-  `docs/file-format-parity.md`, `docs/mcp.md`, `docs/control-protocol.md`, `docs/zotero.md`,
-  `Cargo.toml`; `crates/engine/src/io.rs`, `io_ext.rs`, `cmd/mod.rs`, `cmd/file.rs`,
-  `cmd/tools.rs`; `crates/docx/src/lib.rs`, `crypt.rs`; `crates/docbin/src/lib.rs`;
-  `crates/formats/src/lib.rs`, `sheet.rs`; `crates/pdf/src/lib.rs`; `crates/mcp/src/tools.rs`;
-  `apps/wordcraft-cli/src/main.rs`; `apps/wordcraft/src/main.rs`, `print.rs`;
-  `apps/wordcraft-web/src/main.rs`; `/Applications/WordCraft.app/Contents/Info.plist` (0.6.1).
-- Companion index of claims: `evidence.md` (same directory).
+- Repo: https://github.com/storytold/wordcraft (org `storytold`), inspected read-only at
+  **HEAD `f2e15cf8f899a79899a2d9595ca4ce7df1e5ea22`** (tag **v0.8.0**, "Release 0.8.0") on
+  **2026-10-18**.
+- Installed bundle `/Applications/WordCraft.app` reports `CFBundleShortVersionString` **0.8.0**
+  and `WordCraftBuildCommit` `f2e15cf8f899a79899a2d9595ca4ce7df1e5ea22` — the same commit, so
+  this skill describes the shipped build. If your installed version differs, verify against your
+  installed version (`wordcraft --version`, `wordcraft-cli --version`).
+- Key files read: README.md, ROADMAP.md, Cargo.toml, AGENTS.md, docs/{gaps,roadmap,file-format-parity,
+  mcp,control-protocol,recovery,zotero,parity-checklist}.md, apps/wordcraft/src/main.rs,
+  apps/wordcraft-cli/src/main.rs, crates/engine/src/{io.rs,io_ext.rs,catalog.rs,cmd/file.rs,
+  cmd/mod.rs,cmd/tools.rs}, crates/docx/src/lib.rs, crates/docbin/src/lib.rs, crates/formats/src/lib.rs,
+  crates/mcp/src/tools.rs, crates/control-key/src/lib.rs, crates/ui-egui/src/lib.rs,
+  apps/wordcraft-web/src/main.rs, xtask/src/main.rs, crates/ui-egui/examples/ui_shot.rs.
+- Shared libraries: `storytold/craft-libs` — WordCraft pins
+  `craft-pdf` (PDF writing) and prints through craft-print (Cargo.toml:55, 104–106).

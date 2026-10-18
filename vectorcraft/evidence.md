@@ -1,41 +1,49 @@
-# Evidence table — VectorCraft SKILL.md claims
+# evidence.md — VectorCraft skill claim map (for orchestrator review)
 
-Repo: `storytold/vectorcraft` · Inspected at release tag **v0.12.0**, commit `8bc65329286dc1b84aa392997bb205613c3e96cb` ("Merge pull request #2399 … release-0.12.0", 2026-10-16) · Date: 2026-10-17
-Installed app checked: `/Applications/VectorCraft.app` → `CFBundleShortVersionString` **0.12.0**, `CFBundleIdentifier` `ai.storyteller.vectorcraft` — **matches the inspected commit at authoring time** (still "verify against your installed version").
-No `.codegraph/` index present; exploration was done by reading files directly. Repo treated read-only (no build, no launch).
+Repo: `storytold/vectorcraft` · tag **v0.13.1** · commit `904f0fe5227bd987d55319e89a38b4b8f046998c`
+(2026-10-18) · installed app `/Applications/VectorCraft.app` 0.13.1 (same release).
+Tiers: **implemented** (code path exists and is wired into UI/CLI) · **partial/stub** ·
+**not implemented** (repo-admitted absent).
 
-## Claim → evidence
-
-| # | Claim in SKILL.md | Evidence (repo path) | Tier |
+| # | Claim in SKILL.md | Evidence (repo-relative) | Tier |
 |---|---|---|---|
-| 1 | Clean-room Rust reimplementation of the Illustrator workflow; alpha, MIT/Apache-2.0; macOS/Win/Linux/FreeBSD/WASM; 20 interface languages | `README.md:14-28,238-240`, `ROADMAP.md:10-17`, `docs/localization-parity.md` | implemented (project state) |
-| 2 | Headline parity numbers: ~88% breadth (348/375 menu items wired, 89/92 tools, 30/57 Photoshop effects, 4/4 initial 3D types), ~75% depth, ~62% full / ~65% mainstream readiness | `ROADMAP.md:28-48`; Photoshop count also measured in `docs/effects-parity.md` §Summary (30/57; note ROADMAP says Illustrator effects 44/50 while effects-parity sums 45/50 — cite both, err low) | claimed/estimated (self-assessed from code vs public docs; explicitly never measured against Illustrator) |
-| 3 | Everything is a command: every user-visible action has id/label/menu/shortcut/params; ≈750 `cmd!` spec entries; UI-only `UI_COMMANDS` | `crates/engine/src/cmd/**` (grep count 749 `cmd!` lines), `crates/engine/src/cmd/mod.rs`, `crates/ui-egui/src/menus.rs:54`; queryable via `engine.commands` / MCP `command_list` / `vectorcraft-cli commands` | implemented |
-| 4 | MCP server (stdio JSON-RPC 2.0, rev 2025-06-18): **32 tools** incl. command_list/run/batch, doc_inspect, render_preview, ui_*, select_tool, pointer_gesture, press_key, type_text, invoke_menu, open_panel, screenshot, open_file, save_file, export, draw_*, set_paint, add_text (`vertical`), apply_effect, pathfinder, transform, create_graph, text_wrap, undo, redo; limits 16 MiB lines / 64-message batches / 256-step batches / 8 MiB kept results / 256 MiB replies | `crates/mcp/src/tools.rs:99-487` (extracted 32 names), `docs/mcp.md:105-160,252-314` | implemented |
-| 5 | Control channel: `vectorcraft --control <port>`, loopback JSON lines, no auth; methods incl. engine.execute/commands, document.inspect, ui.* (menu/tool/pointer/key/text/wheel/dialogs/screenshot/render/contextMenu.list), **ui.sampleScreenColor** (new), app.open/save/export/quit; bounded transport 5 min idle / 30 s line / 60 s reply / 16 connections | `apps/vectorcraft/src/control_server.rs`, `crates/ui-egui/src/control.rs`, `docs/control-protocol.md:5-54,89-127,149` | implemented |
-| 6 | CLI `vectorcraft-cli`: subcommands `mcp run commands convert info bench perf`; convert gained `--ai-version 7\|pdf`, `--hidden-objects`, `--transparent-images` | `apps/vectorcraft-cli/src/main.rs:3-13` (usage), `:136-142` (dispatch) | implemented |
-| 7 | Desktop flags/env: `--control`, `--automation-read-root/-write-root` (+env), `--in-window-menus`, `--version`, positional files; `VECTORCRAFT_NO_PREFS`, `VECTORCRAFT_CONFIG_DIR` | `apps/vectorcraft/src/main.rs:635-641,650-701`; `docs/control-protocol.md:10-17` | implemented |
-| 8 | Open/Place formats: `OPEN_EXTS` 25 extensions (native + drawcraft, svg/svgz/pdf/ai/ait/eps/dxf/emf/wmf, png/jpg/gif/webp/tif/bmp/psd/psb, vctemplate, af/afdesign/afpub); Place adds `.txt`; Open also imports swatch/style/libraries/presets/shortcut sets/scripts/plug-ins; DWG/PICT explicitly unsupported with hints | `crates/engine/src/cmd/fileio/mod.rs:647-673` (OPEN_EXTS), `:693-723` (TEXT/PLACE), `:733-744` (open filters); `crates/engine/src/cmd/fileio/dxf.rs:84` (UNSUPPORTED) | implemented |
-| 9 | Save formats `vectorcraft, template, pdf, svg, svgz, ai` + Save-as-Template writes PDF-compatible `.ait` (`TEMPLATE_FORMATS`) | `crates/engine/src/cmd/fileio/save.rs:23,27`; `crates/engine/src/cmd/fileio/mod.rs:544-554` (ait format row) | implemented |
-| 10 | `.ai` save has two flavours: `aiVersion: "pdf"` (default, PDF-compatible, native doc embedded, no Illustrator editing data) and `aiVersion: "7"` (legacy v7 PostScript: layers/groups/compound/clip groups/gradients/editable text, one artboard per file, transparency flatten/omit, names/effects lost, untested by users) | `crates/engine/src/cmd/fileio/native.rs:77-121` (AI_OPTIONS); `docs/file-format-parity.md` §The main format: `.ai`; `docs/gaps.md` G9 | implemented (with stated limits) / partly unproven |
-| 11 | Native format: JSON, versions 1–4 (v4 current; blob-after-JSON since v4, gzip since v3), atomic write, legacy `drawcraft` opens, readers reject newer versions | `crates/format/src/lib.rs:23-31,52-60`; `apps/vectorcraft/src/main.rs` (write_atomic); `crates/engine/src/cmd/fileio/native.rs` | implemented |
-| 12 | Export formats: svg, svgz, pdf, ai, eps, dxf, emf, wmf, png, png8, jpg, webp, gif, tiff, bmp, tga, psd (layered), txt, vectorcraft/template; options per format (SVG options dialog, PDF presets, PPI/scale/artboard range) | `crates/engine/src/cmd/fileio/mod.rs:510-644` (FORMATS, write:true), `:682-690` (export_extensions); `docs/control-protocol.md:109-124` | implemented |
-| 13 | **New in 0.12.0 — Dimension tool**: linear/angular/radius/diameter, linked to source edits; `dimension.create/update/applyToAll` | `crates/engine/src/cmd/dimension.rs:12-35`, `crates/tools/src/dimension.rs`, `crates/tools/src/catalog.rs:105`; `ROADMAP.md:138` (progress log 2026-10-16) | implemented |
-| 14 | **New in 0.12.0 — Object › Intertwine**: Make/Edit/Release + `object.intertwine.arrange`; missing Bring Forward/Send Backward (G13) | `crates/engine/src/cmd/intertwine.rs:32-64`, `crates/ui-egui/src/menus.rs:2483-2484`; `docs/gaps.md` G13 | implemented (partial per G13) |
-| 15 | Actions panel; `command.batch` (one undo step) and `action.batch` (folder ≤500 files / ≤8 levels or data sets; no nesting) | `crates/ui-egui/src/panels/actions.rs`, `crates/engine/src/cmd/fileio/action_batch.rs:1-60`, `crates/engine/src/cmd/fileio/mod.rs:185-192`; `ROADMAP.md:138` | implemented |
-| 16 | Variables (text/visibility/image/graph) + dataset CSV `dataset.import/export`; Export for Screens batch exporting (name pattern, per-format folders, built-in presets, `document.exportPresets.list/save/delete`) | `crates/engine/src/cmd/variablecmds.rs` (23 cmd specs), `crates/engine/src/cmd/fileio/screens.rs:3-9,269-277`, `crates/engine/src/cmd/fileio/mod.rs:150-170`; `docs/gaps.md` revision log 2026-10-14/16 | implemented (scripting surface still missing — G6, stale mid-merge entry) |
-| 17 | Effects: live vector effects + 30/57 Photoshop-style raster filters (Halftone Pattern added; no Effect Gallery); 3D limited to Revolve/Extrude & Bevel/Inflate/Rotate with no materials | `docs/effects-parity.md` §Summary (measured from `crates/effects/src/lib.rs` catalogue), `docs/gaps.md` G2/G3, `crates/three-d` | partial (27 filters + gallery missing; materials missing) |
-| 18 | Type: point/area/on-path, styles, threading, Hebrew/Arabic bidi; CJK vertical composition and hyphenation/justify missing; 20 languages shipped, no native reviews | `crates/text`, `crates/engine/src/cmd/typecmd.rs`, `README.md:238-240`, `docs/localization-parity.md`, `docs/gaps.md` G4/G16 | implemented / partial (G4/G16) |
-| 19 | Automation surfaces: file-access roots confine every path automation reads/writes (keyboard user unconfined); WASM plug-ins ABI v1 (`plugin.*`); `script.check` only reports foreign scripts; web build has Apple Pencil/touch input and no TCP control server | `crates/engine/src/file_access.rs`, `docs/control-protocol.md:56-87`; `crates/plugins`, `docs/plugins.md`; `crates/engine/src/cmd/scripts.rs:20`; `apps/vectorcraft-web/src/main.rs:8-13` | implemented |
-| 20 | Limitations: no scripting engine (Automation brief in gaps G6 is mid-merge/stale — Actions, Variables, dataset CSV and Batch verified in code); generative AI 0% (G18); Affinity import-only (`crates/affinity/README.md`); interaction pass never done (G1); launch/stability issues (G10, `Never-crash lints + guard` stop panics only); MCP synchronous stdio only (`docs/mcp.md` §Not implemented); README perf claim "20,000 shapes ≈27 ms @120 fps" (`README.md:152`) **not verified in this audit** (project's own budget run last measured 25k paths — G15) | `docs/gaps.md` G1/G6/G10/G15/G16/G18, `docs/mcp.md:227-251`, `README.md:152` | not implemented / claimed-but-unverified as labeled |
-
-## Checks performed against the installed bundle (no GUI launched)
-
-- `/Applications/VectorCraft.app/Contents/Info.plist`: `CFBundleShortVersionString` **0.12.0**, `CFBundleVersion` 0.12.0, `CFBundleIdentifier` `ai.storyteller.vectorcraft`, `LSMinimumSystemVersion` 11.0, universal (x86_64 arm64) code-signed. Document types: `ai.storyteller.vectorcraft.document`, `vctemplate`, `svg/svgz`, `pdf`, **`ai`/`ait` ("PDF-compatible .ai")**, `eps`, `af/afdesign/afpub`, `dxf`, `emf/wmf`, `png/jpg/jpeg/gif/webp/tif/tiff/bmp`.
-- `Contents/MacOS/` holds only the GUI binary `VectorCraft` — the CLI/MCP tool is a separate release asset (matches `docs/mcp.md` §From an installed release). No `vectorcraft`/`vectorcraft-cli` on PATH.
+| 1 | Clean-room pure-Rust reimplementation of Illustrator; macOS/Win/Linux/FreeBSD + WASM web | `README.md` L14–21, L259–261; `apps/vectorcraft-web/`; `xtask/src/main.rs` (`wasm` task) | implemented |
+| 2 | Stage alpha; ~88% breadth, ~75% depth, ~62% ready-for-real-work, self-assessed | `ROADMAP.md` L10, L28–43; `docs/target-app-parity.md` | partial (alpha, by design) |
+| 3 | Native format `.vectorcraft`/`.drawcraft`, JSON v4, down-save, gzip, preview, compact mode | `crates/format/src/lib.rs` (`VERSION = 4`, `EXTENSION`, `LEGACY_EXTENSION`); `docs/mcp.md` › Native files | implemented |
+| 4 | Multi-document tabs, artboards, layers, dockable panels, workspaces | `crates/ui-egui/src/control.rs` (`documents`, `activeDocument`); `crates/ui-egui/src/state.rs` L376–381; `ROADMAP.md` UI.5 entry; `crates/ui-egui/src/panels/` listing | implemented |
+| 5 | Tools emit commands; every gesture replayable via control/MCP | `crates/tools/src/lib.rs` (module doc); `AGENTS.md` › Everything is a command | implemented |
+| 6 | Curve-preserving Pathfinder booleans, Shape Builder regions, offset/outline/simplify | `crates/pathops/src/lib.rs` (module doc); `crates/engine/src/cmd/pathops.rs` | implemented |
+| 7 | Type: point/area/path, threading, styles, OpenType features, vertical (initial CJK), Hebrew/Arabic bidi | `crates/text/src/lib.rs`; `docs/type-parity.md` (summary 80% core / 50% advanced); `README.md` | implemented (advanced type partial) |
+| 8 | Live effects + raster effects; 33/57 Photoshop-style filters | `crates/effects/src/lib.rs` (module doc); `docs/effects-parity.md`; `ROADMAP.md` L32 | partial (24 filters missing) |
+| 9 | 3D: Revolve, Extrude & Bevel, Inflate, Rotate, 1–10 coloured lights; no materials; painter's algorithm | `crates/three-d/src/lib.rs` (module doc); `ROADMAP.md` 2026-10-12 & L32; `docs/three-d.md` | partial (~25%) |
+| 10 | Image Trace with presets and measured quality | `crates/trace/src/lib.rs`; `docs/image-trace-quality.md` | implemented |
+| 11 | Open/place formats — exact extension lists | `crates/engine/src/cmd/fileio/mod.rs` `OPEN_EXTS` (L660–688), `PLACE_EXTS` (L719–750), `FORMATS` (L520–657) | implemented |
+| 12 | PSD/PSB open as merged image only; PSD export layered | `docs/file-format-parity.md` PSD row; `crates/engine/src/cmd/fileio/psdread.rs`; `FORMATS` (`psd` read+write, `psb` reader) | implemented (with stated loss) |
+| 13 | Affinity `.af/.afdesign/.afpub` read-only native import | `crates/affinity/src/lib.rs` (module doc: "Nothing here writes Affinity files"); `docs/affinity-validation.md` | implemented (read-only) |
+| 14 | Save formats: vectorcraft, template, pdf, svg, svgz, ai (PDF-compatible default, legacy v7 option) | `crates/engine/src/cmd/fileio/save.rs` `SAVE_FORMATS` L23; `docs/file-format-parity.md` › The main format | implemented |
+| 15 | Export formats (extension-driven, 19 exts) incl. layered PSD, png8, targa; Export for Screens; CSS; print via craft-print | `crates/engine/src/cmd/fileio/mod.rs` `export_extensions()`; `fileio/{screens.rs,encode.rs}`; `crates/engine/src/cmd/{css.rs,print.rs}`; root `Cargo.toml` (`craft-print`) | implemented |
+| 16 | `.ai` exchange gaps: layer structure in real files, no Illustrator editing data written, no real-file corpus | `docs/gaps.md` › G9; `docs/file-format-parity.md` (known failures #951/#868/#779/#758/#637) | not implemented (blocked, G9) |
+| 17 | MCP server: stdio JSON-RPC 2.0, remote/headless backends, tool list, not-implemented list | `docs/mcp.md` (Tools, Not implemented); `crates/mcp/`; `apps/vectorcraft-cli/src/main.rs` (`mcp` subcommand) | implemented (stdio only) |
+| 18 | Control channel: loopback JSON-lines, method list, synthetic input budgets, 16 conn limit, no auth | `docs/control-protocol.md`; `crates/ui-egui/src/control.rs`; `apps/vectorcraft/src/control_server.rs` | implemented |
+| 19 | CLI subcommands mcp/run/commands/convert/info/bench/perf + flags; `$N.path` step references; `importWarnings` | `apps/vectorcraft-cli/src/main.rs` USAGE L67–119, `run()`/`convert()`; `crates/engine/src/steps` (`vectorcraft_engine::steps::resolve`) | implemented |
+| 20 | File-access confinement for agents (read/write roots, link-following rules) | `docs/mcp.md` › Confining file access; `docs/control-protocol.md` › Confining; `crates/engine/src/file_access.rs` (referenced as `file_access`) | implemented |
+| 21 | WASM plug-in ABI v1 sandbox (wasmi, no imports, fuel/memory caps) | `docs/plugins.md`; `crates/plugins/src/lib.rs`; root `Cargo.toml` (`wasmi`) | implemented |
+| 22 | Scripting for the reference app does **not** run; `scriptcheck` statically analyses `.jsx`/`.jsxbin` | `README.md` › What's missing (scripting); `crates/scriptcheck/src/lib.rs` (checker, "without running any of it"); `docs/mcp.md` › Checking scripts | not implemented (checker implemented) |
+| 23 | Never-crash discipline: no-panic lints + engine `guard` rollback (native only; wasm aborts) | root `Cargo.toml` `[workspace.lints.clippy]`; `crates/engine/src/guard.rs` (module doc) | implemented |
+| 24 | Localization: 20+ catalogues, ~10 complete, no native review | `crates/ui-egui/src/i18n/*.tsv`; `ROADMAP.md` L100–115; `docs/localization-parity.md` | implemented (review pending) |
+| 25 | "20,000 shapes ~27 ms" README figure; budgets checkable via `vectorcraft-cli perf` | `README.md` › Why VectorCraft; `apps/vectorcraft-cli/src/perf.rs` (budget harness, noise caveats) | claimed (self-report; measure locally) |
 
 ## Notes for the orchestrator
 
-- Where the ROADMAP headline (44/50 Illustrator effects) and `docs/effects-parity.md` (45/50) disagree, the SKILL errs low and cites both.
-- `docs/gaps.md` G6 and G13 contain duplicated/stale mid-merge text; every SKILL claim about them was re-verified against code (`variablecmds.rs`, `action_batch.rs`, `dimension.rs`, `intertwine.rs`).
-- The legacy `.ai` version 7 writer is new in v0.12.0 and the project itself marks it as awaiting user testing; the SKILL says so rather than promising it works.
+- No codegraph index exists in this repo; all reads were direct (grep/read) against the v0.13.1
+  checkout, which is byte-identical to the installed 0.13.1 app bundle per `Info.plist`
+  (`CFBundleShortVersionString` 0.13.1) and the release commit (`git log -1`: "Release 0.13.1").
+- `vectorcraft-cli` is **not installed** on this Mac (checked `PATH`, common bin dirs; the `.app`
+  bundle holds only the desktop executable) — the skill says to build it or fetch the separate
+  macOS CLI release asset, matching `docs/mcp.md`.
+- The `docs/file-format-parity.md` summary table lists "PS" as missing while its own format row
+  and `FORMATS`/`OPEN_EXTS` show PostScript `.ps` read/place is implemented — the code was
+  treated as authoritative and the skill lists `.ps` as supported.
+- Tier honesty: ui-parity/type-parity/effects-parity "done" statuses are documentation-derived,
+  never side-by-side measured (repo states this); the skill carries that caveat under "claimed but
+  unverified".

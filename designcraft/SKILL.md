@@ -1,306 +1,363 @@
 ---
 name: designcraft
-description: DesignCraft is a desktop page-layout and publishing app (clean-room reimplementation of Adobe InDesign) for macOS, Windows, Linux and the web. Trigger whenever the user mentions DesignCraft, .designcraft or .idml files, InDesign-style layout (magazines, books, brochures, flyers, posters, newsletters), threading text across frames, placed images and swatches, print/PDF output, or asks to create, convert, export, automate, script (CLI/MCP/control channel), verify or troubleshoot a page-layout document — even when they do not name the app. Also trigger when preparing assets (images, Word/Excel/CSV) for layout, or checking whether a layout file can be opened or exported somewhere else.
+description: DesignCraft is the ArtCraft team's open-source, clean-room page-layout and publishing app (an InDesign-style desktop application written in pure Rust, with a documented JSON project format, an IDML/PDF/EPUB/PPTX export pipeline, a headless CLI, an MCP server and a JSON control channel). Trigger this skill whenever the user mentions DesignCraft — or a `.designcraft`, `.dcbook`, `.dclib` or `.dcscript` file — asks what it can or cannot do, which formats it opens or writes, its keyboard shortcuts, how to automate or script it, how to prepare or convert assets for it, how to verify or repair its output, or how to troubleshoot it. Also trigger when the job is described without naming the app: "lay out a magazine", "thread this story across three columns", "set this on a baseline grid", "export a PDF/X-4", "make an EPUB from these pages", "batch-export every page to PNG", "place these photos in a brochure". Do not guess its capabilities from InDesign knowledge — read this first.
 ---
 
 # DesignCraft
 
 ## Overview
 
-DesignCraft is a clean-room reimplementation of Adobe InDesign — page layout and publishing —
-written in pure Rust and shipped for macOS, Windows, Linux and WebAssembly (`README.md`).
-It mirrors InDesign's model: spreads and parent pages, frames and threaded stories, the Control
-panel, paragraph/character/object styles, swatches, text wrap (`README.md`; `docs/architecture.md`).
-Maturity is **pre-alpha**: `ROADMAP.md` says the alpha gate fails only on Primary Text Frame
-autoflow adding undeletable pages (#165, ~5–7 h away); "ready for real work" is estimated at ~47%.
-Source: GitHub org `storytold`, repo `designcraft` (`Cargo.toml` `repository`).
-The app on the authoring machine is 0.7.1 while repo HEAD is 0.8.0 — verify against your installed version
-(see `## Verification protocol`).
+DesignCraft is a page-layout and publishing application: an open-source, clean-room reimplementation of
+Adobe InDesign's workflow, written from scratch in Rust (README.md: "an open-source, clean-room
+reimplementation of Adobe InDesign, rebuilt in pure Rust"). It runs natively on macOS, Windows and Linux,
+and in a browser as WebAssembly (`apps/designcraft-web`, README.md §Web).
+
+Maturity is **pre-alpha**: `ROADMAP.md:3` and `docs/target-app-parity.md` ("Stage: **pre-alpha** (fails the
+core-workflow gate)"), against a target of InDesign 2026 (21.6). Feature breadth is estimated at ~80%
+(measured lower bound 69%, upper bound 99%) and "ready for real work" at ~47% — `docs/target-app-parity.md`.
+
+Source: GitHub `storytold/designcraft`, MIT OR Apache-2.0 (`Cargo.toml`, `LICENSE-MIT`, `LICENSE-APACHE`).
+The engine is a layered Cargo workspace (L0 `geom`/`color` → L5 `engine` → L6 `ui-egui` → L7 apps;
+README.md §Architecture, enforced by `cargo xtask layers` in `xtask/src/layers.rs`).
+
+The one idea that governs everything: **every user-visible action is a command** with a stable id and JSON
+parameters (`crates/engine/src/cmd/mod.rs`, `command_specs()`), and the UI, the CLI, the control channel
+and MCP all go through `Session::execute` (`crates/engine/src/lib.rs:5`). Prefer commands over GUI poking.
 
 ## Capabilities (verified)
 
-### Core editing and layout
+### Layout and document model — implemented
+- Facing/non-facing spreads, parent (master) pages with page-number markers, sections, layers, and frames
+  typed text / graphic / unassigned; stories threaded across frames and spreads (`crates/doc/src/page.rs`,
+  `crates/doc/src/story.rs`; `crates/engine/src/cmd/layout.rs`, `crates/engine/src/cmd/thread.rs`).
+- Document setup, page size presets, bleed and slug per edge, start page, page tool for pages of their own
+  size (`crates/engine/src/cmd/file.rs` — `file.new` params; `layout.documentSetup`, `layout.pageSize`).
+- Multi-document tabs: several documents open at once, `file.activate {index}`, `file.close {index}`,
+  `document.list`, next/previous document (`Cmd+F6` / `Cmd+Shift+F6`) — `crates/engine/src/cmd/file.rs`,
+  `crates/ui-egui/src/menus.rs:199`.
+- Styles (paragraph, character, object, table, cell, groups), swatches (process/spot/tints/gradients),
+  text wrap, corner options, effects (`crates/engine/src/cmd/style.rs`, `crates/engine/src/cmd/object.rs`; `crates/doc/src/styles.rs`).
+- Interactions: Pathfinder (boolean ops via `flo_curves`), compound paths, clipping paths, gradients,
+  stroke styles/arrowheads, tables with merges and graphic cells, footnotes, endnotes, cross-references,
+  index, TOC, text variables, conditional text, track changes, data merge, XML tags/DTD, articles,
+  object libraries, books (`crates/engine/src/cmd/*` — 60 module `specs()` lists, see `cmd/mod.rs:166`).
+- Graphics: placed rasters, PDF pages, SVG, PSD composites, EPS previews (`crates/images`, `crates/render`).
 
-- Document model: spreads/pages (facing or not), parent pages with page-number markers, sections,
-  layers, frames (text/graphic/unassigned), threaded stories, five style kinds with based-on chains
-  and groups, swatches (process/spot/tints/gradients), corner options, text wrap, effects
-  (`crates/doc`; `docs/target-app-parity.md` "Appendix: what works today").
-- Text engine: Knuth–Plass paragraph composer plus single-line composer, dictionary hyphenation
-  (English, Spanish), word/letter/glyph-scaling justification, keeps, baseline grid, columns,
-  tabs, bullets/list numbering, drop caps, nested/GREP styles, footnotes/endnotes, tables,
-  cross-references, index, TOC, text variables, text on a path, vertical/CJK text, RTL/Arabic
-  basics (`crates/compose`; `docs/typography-parity.md`, `docs/cjk.md`, `docs/arabic-typography.md`).
-- Threading works by hand plus commands: `text.thread`, `text.unthread`, `text.removeFromThread`
-  (`crates/engine/src/cmd/thread.rs`); autoflow adds pages up to 2000 (`AUTOFLOW_MAX_PAGES`).
-- Tools: Selection, Direct Selection, Type, Pen/Pencil, Rectangle/Ellipse/Polygon (+ frame
-  variants), Line, Hand, Zoom, Gap, Scissors, Gradient, Eyedropper, Page tool
-  (`crates/tools`; `docs/target-app-parity.md`; control channel `ui.tool.select`).
-- Effects/transparency: drop/inner shadow, glows, feathers, bevel, satin, gradient feather,
-  transparency flattener, separations/overprint preview, PDF output-keeping soft effects
-  (`crates/engine/src/cmd/object.rs`, `docs/target-app-parity.md`).
-- Data Merge from a linked CSV/TSV/text/`.xlsx` source; placeholders for text, image, QR,
-  hyperlink; `data.merge` creates a new document and leaves the template unchanged
-  (`crates/engine/src/cmd/datamerge`; `docs/agents.md#data-merge`).
+### Text engine — implemented
+- Knuth–Plass total-fit paragraph composer plus a single-line composer, with a shared compose cache
+  (`crates/compose/src/lib.rs:5`, `crates/compose/src/breaker.rs`).
+- Dictionary hyphenation (public-domain Moby list plus trained Liang patterns) and language-dependent
+  typographic quotes; bilingual/bidi text (Unicode Bidi), CJK composition with mojikumi/kinsoku, vertical
+  type, ruby, kenten, warichu, tate-chu-yoko (`crates/compose/{hyphen,bidi,mojikumi,ruby,kenten,warichu}.rs`,
+  `ROADMAP.md`).
+- Fonts: own font DB, shaping (harfrust), outlines (skrifa), variable-font instances, document-fonts
+  folders beside a document (`crates/fonts/src/fontdb.rs`, `crates/engine/src/cmd/file.rs`
+  `load_document_fonts`).
 
-### Import / open
+### Import / open — implemented
+`file.open` decides by content, not extension (`crates/engine/src/cmd/file.rs:41`, `open_path`):
+- Native `.designcraft` (zip or legacy single JSON) — `crates/format`.
+- `.idml` InDesign Markup, imported into the native model — `crates/idml/src/import.rs`.
+- `.indd` / `.indt`, converted to IDML in memory by `storytold/indd-utils` (`crates/engine/src/cmd/interchange.rs`;
+  measured only on synthetic bytes — `docs/gaps.md` §2).
+- Placed graphics: PNG, JPEG, GIF, WebP, TIFF, BMP, PSD/PSB composite, SVG, PDF (one page, with crop-box
+  choice), Illustrator PDF-compatible files, EPS (TIFF preview or placeholder — no PostScript interpreter)
+  (`crates/images/src/lib.rs`, `crates/engine/src/cmd/file.rs` `file.place`).
+- Text: `.txt`, `.docx`, `.rtf`, `.md`, `.xlsx` (first used range becomes a table), Tagged Text
+  (`crates/textimport/src/{docx,rtf,xlsx,tagged}.rs`, `crates/engine/src/cmd/place_text.rs`).
+- Data sources for Data Merge: CSV, TSV, text, `.xlsx` (`crates/engine/src/cmd/datamerge/`).
+- Media: mp4, m4v, mov, webm, mp3, m4a, wav, ogg (`crates/engine/src/cmd/media.rs`).
+- Swatches `.ase`, ICC `.icc`/`.icm`, XML (with DTD), libraries `.dclib`, books `.dcbook`
+  (`crates/engine/src/cmd/{load_styles,colorsettings,xml,library,book}.rs`).
 
-- Native **`.designcraft`** documents and **`.idml`** (InDesign Markup) — `file.open` dispatches
-  on `.idml`; `file.openIdml` opens IDML packages; `file.openBytes` takes base64 for either
-  (`crates/engine/src/cmd/file.rs:160-234`, `crates/engine/src/cmd/interchange.rs:10-18`).
-- Placed graphics: PNG, JPEG, GIF, WebP, TIFF (incl. CMYK), BMP, PSD/PSB composite, SVG, PDF (a
-  chosen page, first page by default), PDF-compatible Illustrator `.ai`, EPS (shown through its
-  preview only — no PostScript interpreter); media files become media frames
-  (`crates/images`; `crates/engine/src/cmd/file.rs` place filters; `apps/designcraft/src/main.rs`
-  `open_filters`).
-- Placed text: Word `.docx` (styles by name), RTF, plain text, Markdown, `.xlsx` as a table,
-  InDesign Tagged Text (`crates/textimport/src/lib.rs:93-117`; `crates/engine/src/cmd/place_text.rs`).
-- Resources: `.ase` swatch exchange load/save; `.icc`/`.icm` profiles
-  (`crates/color`; `docs/file-format-parity.md`).
+### Native format — implemented
+`.designcraft` is a zip (`crates/format/src/lib.rs:1` — "The native `.designcraft` format"): `mimetype` (stored, first,
+`application/vnd.designcraft+zip`), `document.json` (pretty JSON of the serde model in `crates/doc`),
+`assets/<id>.<ext>` (each referenced placed file once, byte-for-byte), `meta.json`
+(`{"format":"designcraft","version":N,"generator":"DesignCraft <ver>"}`) and an optional `preview.png`
+(first-page picture for the start screen). Latest version 3 (`VERSION`, line 26); readers upgrade older
+versions and still open the legacy single-JSON form with base64 `assetData` (`load_legacy_json`).
+Read limits: 100 000 entries, 256 MiB `document.json`, 1 GiB per asset, 4 GiB total, and a document whose
+geometry is not finite cannot be saved (`FormatError::Unsaveable`). `file.saveAs` appends `.designcraft`
+when the extension is missing (`with_document_extension`).
 
-### Save / native project format
+### Export — implemented
+- **PDF** (`crates/pdf`, command `file.exportPdf`): real selectable text with embedded font subsets,
+  DeviceCMYK/RGB/Gray, spot `/Separation`, bleed boxes, crop/bleed marks and page info, pages or spreads,
+  `standard: "none" | "x4" | "a2b"` (PDF/X-4 output intent with built-in conformance checks; PDF/A-2b),
+  tagged PDF structure tree, transparencies flattened (`flatten: high|medium|low|ppi`), hyperlink
+  annotations and outlines, interactive options, `file.printBooklet` imposition. `designcraft-cli
+  validate-pdf file.pdf` runs the PDF/X-4 checks for CI (`crates/pdf/src/pdfx.rs:201`).
+- **EPUB 3** reflowable (`file.exportEpub`) and fixed layout (`file.exportFixedEpub`, pre-paginated page
+  images plus their text) — `crates/epub/src/lib.rs`.
+- **HTML** (`file.exportHtml`): one self-contained page, styles as CSS, images embedded.
+- **PowerPoint** (`file.exportPptx`): every page becomes a slide of editable shapes, pictures, tables and
+  text boxes; `lineBreaks: keep|reflow`, `rasterize`, `embedFonts` (`crates/pptx/src/lib.rs`).
+- **PNG / JPEG** of a page via the renderer (`designcraft-cli run --export out.png`, `--all-pages DIR`,
+  MCP `render_page` / `export_png`, control `ui.render`) — `crates/render/src/lib.rs:414`.
+- **IDML** (`file.exportIdml`, `embedImages`), **Text** `.txt`/`.rtf`/tagged (`file.exportText`), **XML**
+  (`file.exportXml`).
+- **Print** (`file.print`, `file.printers`, `dryRun`) goes through the shared `craft-print` spooler.
 
-- `.designcraft` is a zip: `mimetype` (stored) `application/vnd.designcraft+zip`, `meta.json`
-  (format version), `document.json` (pretty JSON), `assets/<id>.<ext>` byte-for-byte (one copy per
-  distinct file, unreferenced assets dropped). Format `VERSION = 2`; older JSON documents still
-  open and old versions are upgraded on load; a newer format version refuses to open
-  (`crates/format/src/lib.rs:1-144`; save/open in `crates/engine/src/cmd/file.rs`).
+### Automation surfaces — implemented
+- **CLI** `designcraft-cli` (`apps/designcraft-cli/src/main.rs`, the `USAGE` const): `run`, `commands
+  [FILTER]`, `describe COMMAND`, `script`, `app`, `mcp`, `perf`, `bench`, `validate-pdf`, `links`.
+- **MCP server** `designcraft-cli mcp` — stdio JSON-RPC, protocol 2025-06-18 (older revisions accepted),
+  tools `list_commands`, `execute`, `batch`, `inspect_document`, `get_story`, `set_story_text`,
+  `new_document`, `open_document`, `save_document`, `place_image`, `render_page`, `export_png`,
+  `screenshot`, `select_tool`, `pointer`, `key`, `type_text`, `ime`, `click`, `drag`, `menu_list`,
+  `ui_inspect`, `ui_set`, `dialog_set`, `dialog_confirm`, `dialog_cancel` (`crates/mcp/src/tools.rs`;
+  `docs/mcp.md`).
+- **Control channel**: `designcraft --control PORT` serves JSON lines on `127.0.0.1` only
+  (`apps/designcraft/src/control_server.rs`; methods in `crates/ui-egui/src/control.rs:169`; 4 MiB line
+  limit, 16 connections, no authentication — `docs/control-protocol.md`).
+- **Scripts**: one command per line with `$N.path` references to earlier results
+  (`crates/engine/src/script.rs`; `script.run {text}`; `docs/agents.md`).
+- Surface size at this tag: ≈483 engine command specs (grep of `cmd!` registrations outside test code
+  across 60 `specs()` lists; `crates/engine/src/cmd/mod.rs:166`) plus 139 UI commands
+  (`crates/ui-egui/src/menus.rs:18` `UI_COMMANDS`). `docs/target-app-parity.md` measured 446 + 99 earlier;
+  treat counts as approximate and discover the live list with `designcraft-cli commands`.
 
-### Export
-
-- **PDF** via `file.exportPdf`: real selectable text with subset fonts, DeviceCMYK/RGB, spot
-  separations, bleed/marks, spreads, tagged PDF, PDF/X-4 with output intent and built-in checks,
-  PDF/A-2b, compressed images, interactive extras (links, buttons, AcroForm fields, page
-  transitions, media) (`crates/pdf`; `crates/engine/src/cmd/export.rs:11-13`).
-- **IDML** via `file.exportIdml` (embedded images optional; verified opening in InDesign 2026 by
-  the project, no real-file corpus yet) (`crates/engine/src/cmd/interchange.rs:12-13`;
-  `docs/file-format-parity.md`).
-- **EPUB**: reflowable `file.exportEpub` and fixed-layout `file.exportFixedEpub`
-  (`crates/epub/src/lib.rs`; fixed-layout is page images with text kept for search).
-- **HTML**: `file.exportHtml` — one self-contained page in reading order (`crates/engine/src/cmd/export.rs:25-27`).
-- **Text**: `file.exportText` as `txt`, `rtf` or `tagged` (`crates/engine/src/cmd/export.rs:28-30`).
-- **XML**: `file.exportXml` / `file.importXml` (`crates/engine/src/cmd/xml.rs`).
-- **Raster**: PNG from the UI (`app.exportPng`, ⌘E) and CLI; JPEG from the CLI only at quality 90
-  (`apps/designcraft-cli/src/main.rs:297-318`; `docs/file-format-parity.md`).
-- **Booklet** printer spreads as PDF (`file.printBooklet`); **Package** writes links, document
-  fonts, IDML, optional PDF and a report (`crates/engine/src/cmd/package.rs`;
-  `crates/engine/src/cmd/export.rs:22-24`).
-
-### Automation surfaces (all verified in code)
-
-- **Every user-visible action is a command**: 446 engine commands (188 placed in menus) + 99 UI
-  commands; menu bar 9 menus / 49 submenus / 340 items (`crates/engine/src/cmd/mod.rs:150-211`;
-  `crates/ui-egui/src/menus.rs` `UI_COMMANDS` & `MENUS`; `docs/target-app-parity.md` measured).
-  Discover them at runtime: `designcraft-cli commands [FILTER]` and
-  `designcraft-cli describe <id>` (label, menu, shortcut, params).
-- **CLI** `designcraft-cli`: `run`, `commands`, `describe`, `script`, `app`, `mcp`, `perf`,
-  `bench`, `validate-pdf`, `links`, `--version` (`apps/designcraft-cli/src/main.rs:38-39`).
-  Scripts support `$N.path` references to earlier step results (`docs/agents.md`).
-- **MCP server**: `designcraft-cli mcp [--connect PORT] [--sample]`, newline-delimited JSON-RPC
-  on stdio; tools include `list_commands`, `execute`, `batch`, `inspect_document`, `get_story`,
-  `set_story_text`, `new_document`, `open_document`, `save_document`, `place_image`,
-  `render_page`, `export_png`, `screenshot`, `select_tool`, `pointer`, `key`, `type_text`,
-  `click`, `drag`, `menu_list`, `ui_inspect`, `ui_set`, `dialog_set/confirm/cancel`
-  (`crates/mcp`; `docs/mcp.md`).
-- **Control channel**: desktop app with `--control <port>` (or `DESIGNCRAFT_CONTROL_PORT`)
-  speaks JSON lines on `127.0.0.1` — `engine.execute`, `engine.commands`,
-  `document.inspect`, `ui.inspect`, `ui.pointer`, `ui.key`, `ui.text`, `ui.click`, `ui.drag`,
-  `ui.screenshot`, `ui.render`, `ui.dialog.*`, `ui.menu.invoke`, `app.open/save/export/quit`
-  (`apps/designcraft/src/control_server.rs`; `crates/ui-egui/src/control.rs`; `docs/control-protocol.md`).
-  No authentication; malformed lines close the connection.
-- **Web build**: same UI in WASM via trunk, WebGPU with WebGL2 fallback; open/place through the
-  browser picker or drag-and-drop; **no control channel** (`apps/designcraft-web`; `README.md`).
-
-### Platform notes
-
-- macOS is the primary, best-tested platform; Windows/Linux work but have known failures
-  (`docs/hardware-parity.md`). Canvas rasterizes on CPU (vello_cpu, multithreaded); GPU only
-  presents (wgpu: Metal/DX12/Vulkan/OpenGL) (`docs/architecture.md`).
-- Localization partial: e.g. Japanese 95%, most others 83–85%, pt-BR 61%; Hindi/Indonesian/
-  Korean/Vietnamese none (`ROADMAP.md`; `docs/localization-parity.md`).
-- Crash recovery: unsaved documents written every 30 s (default `recovery_minutes: 0.5`) into a
-  per-run locked folder and reopened after a crash (`crates/ui-egui/src/lib.rs:909-916`;
-  `crates/engine/src/recovery.rs`; `apps/designcraft/src/profile.rs`).
+### Platforms — implemented
+- macOS, Windows, Linux native (`apps/designcraft`); WebAssembly web build via trunk
+  (`apps/designcraft-web`: `trunk build --release`, WebGPU with a WebGL2 fallback, `?webgl` to force it,
+  `?sample` for the sample magazine). The web build has no control channel, and Save/Export download files
+  instead of writing them (README.md §Web).
+- Runtime environment variables: `RUST_LOG`, `WGPU_BACKEND`, `WGPU_POWER_PREF`, `WGPU_ADAPTER_NAME`,
+  `DESIGNCRAFT_CONTROL_PORT`, `DESIGNCRAFT_CONFIG_DIR`, `DESIGNCRAFT_NO_PREFS`,
+  `DESIGNCRAFT_NO_NATIVE_MENU` (README.md §§Logs, Portable mode; `apps/designcraft/src/{main,profile}.rs`).
 
 ## Known limitations and not-implemented
 
-- **Not InDesign parity; pre-alpha.** Alpha gate fails on Primary Text Frame autoflow (#165);
-  expect missing depth across areas (`ROADMAP.md`; `docs/gaps.md`).
-- **`.indd` cannot be opened** (nor `.indt`, `.indb`, `.indl`, `.idms`, `.icml`, QuarkXPress,
-  PageMaker). No INDD-reading code exists; only IDML is exchanged (`docs/gaps.md` #2;
-  `docs/file-format-parity.md`; grep confirms no `.indd` reader).
-- **No ExtendScript/UXP compatibility**: InDesign scripts do not run; only DesignCraft's own
-  command/script/MCP API. No plug-in model (`docs/gaps.md` #22–23).
-- **PDF/print gaps:** no PDF/X-1a or X-3, no `.joboptions`/PDF presets, no PDF/UA validation, no
-  PostScript import or export; printing is PDF → CUPS (macOS/Linux) / Windows spooler, physical
-  print output unvalidated (`docs/file-format-parity.md`; `docs/gaps.md` #9–10).
-- **Editing bugs on Windows/Linux:** object copy/paste and right-click context menus fail for
-  several users; Paste in Place can land on page 1; caret formatting can be discarded
-  (`docs/gaps.md` #1; `docs/ui-parity.md`). macOS does not have these copy/paste failures.
-- **No canvas IME** for Chinese/Japanese/Korean (#322) (`docs/gaps.md` #8).
-- **Typography fidelity unmeasured:** no comparison against InDesign's line breaks; optical
-  kerning falls back to metrics; a frame goes overset where InDesign only needs the baseline;
-  hyphenation only English/Spanish; spelling English only (`docs/typography-parity.md`;
-  `docs/gaps.md` #4, #13).
-- **Startup can crash on some GPUs** (Intel Mac Metal, some Windows drivers) despite a backend
-  fallback via `gpu.json` (`docs/gaps.md` #5; `README.md` “Graphics backend”).
-- **Installed fonts not always found** (user font folders, font managers, Adobe Fonts) — text can
-  fall back to Source Sans 3 (`docs/gaps.md` #6).
-- **Web build** has no control channel, no folder-based document fonts (`docs/control-protocol.md`;
-  `README.md`).
-- **Long documents shallow:** Books basic; no book-wide TOC/index (`docs/gaps.md` #15).
-- **No in-app media playback**; placed video/audio are poster/placeholder plus PDF/EPUB embedding
-  (`docs/target-app-parity.md`).
-- **macOS bundle quirk (verified):** `packaging/macos/Info.plist.in` declares the document UTI
-  with extension **`pcraft`** (a leftover from the sibling app's template) and the bundle has no
-  `CFBundleDocumentTypes` — confirmed identical in the installed 0.7.1 bundle. Do not rely on
-  Finder double-click or drag-on-icon to open `.designcraft` files (also open bug #211 for IDML);
-  open from inside the app or pass the path on the command line instead.
-- Claimed but unverified by this review: real IDML round-trip fixtures, line-break identity with
-  InDesign for specific documents, and print fidelity — `docs/file-format-parity.md` labels these
-  `~` / open (`#193, #338, #339, #340`).
+Ranked shortfall list: `docs/gaps.md` (kept current by the maintainers — read it before promising work).
+The headline items at this tag:
+
+- **Pre-alpha.** The alpha gate is blocked by Smart Text Reflow on the Primary Text Frame adding pages
+  users cannot delete (#165) — `docs/gaps.md` §0, `ROADMAP.md:3`. Threading by hand works.
+- **Basic canvas editing still fails for some users** — object copy/paste on Windows and Linux,
+  right-click context menus, formatting at a caret discarded (`docs/gaps.md` §1, issues #351/#348/#312/…,
+  mostly against the 0.4/0.5 builds).
+- **INDD/INDT opening is unmeasured on real files** (synthetic bytes only) and **INDB/INDL are not read**;
+  no QuarkXPress import. `docs/gaps.md` §§2, 19.
+- **IDML round-trip is not proven on real files** — broad importer coverage, but no InDesign-authored
+  corpus metric; opened IDML can reflow (`docs/gaps.md` §§3, 4).
+- **EPS is preview-only** — no PostScript interpreter; placed EPS is drawn/printed from its TIFF preview
+  or replaced by a placeholder (`docs/gaps.md` §19, `crates/images/src/eps.rs`).
+- **No ExtendScript/UXP compatibility**: InDesign scripts do not run; the script language is
+  DesignCraft's own command language (`docs/gaps.md` §22, `crates/engine/src/script.rs`).
+- **No plug-in model** (`docs/gaps.md` §23). **No in-app media playback** (`ROADMAP.md`).
+- **PDF output presets and standards**: no PDF/X-1a, PDF/X-3, PDF/UA validation, Adobe `.joboptions`
+  presets, or output-intent choice beyond the built-in profile; PostScript printing is absent
+  (`docs/gaps.md` §§9, 10).
+- **HTML export is one basic page; fixed-layout EPUB writes page images** rather than live text/CSS;
+  no EPUB animation or timing (`docs/gaps.md` §17).
+- **Hyphenation** for English, Spanish, Portuguese, Norwegian and Greek only; **spelling** English only
+  (`docs/gaps.md` §13).
+- **No screen-reader exposure** of panels and dialogs; PDF/UA of exports unverified (`docs/gaps.md` §25).
+- **Startup crashes and blank canvases on some GPU/driver combinations** are a known, partly mitigated
+  class (backend fallback + `gpu.json` skip list; `docs/gaps.md` §5, README.md §Graphics backend).
+- **Performance**: no incremental composition (a keystroke in a huge story recomposes more than it must)
+  and no GPU raster — the canvas is CPU-rendered with `vello_cpu`, the GPU only composites the UI
+  (`docs/gaps.md` §20, README.md §Why DesignCraft).
+- **Font discovery**: fonts activated by font services/managers are not always found; no reload when fonts
+  change on disk (`docs/gaps.md` §6).
+- **Localization** is partial (German and Japanese complete; others 83–85%; some languages missing) —
+  `docs/gaps.md` §21, `ROADMAP.md`.
+- **Stale documentation to distrust**: the `crates/pdf/src/lib.rs` module header still says "Not yet:
+  tagged PDF, bookmarks, hyperlinks, overprint, layers as optional content", but tagged PDF, hyperlinks,
+  bookmarks and optional content are wired in (`crates/pdf/src/export.rs`, `links.rs`, `pdflayers.rs`
+  commands); `ROADMAP.md`'s "~200 commands" line is old; `ROADMAP.md:189` points at `docs/parity.md`,
+  which does not exist (the file is `docs/parity-checklist.md`); `docs/user/getting-started/install.md`
+  is stamped `verified: 0.7.1`. **Uncertain — verify with `designcraft-cli describe` against your build.**
 
 ## How to operate
 
 ### Launch on macOS
+- GUI: `open -a DesignCraft` (installed as `/Applications/DesignCraft.app`,
+  `CFBundleIdentifier ai.storyteller.designcraft`, `CFBundleShortVersionString 0.9.0`). To open a file:
+  `open -a DesignCraft ~/Documents/Brochure.designcraft`.
+- Binary inside the bundle: `/Applications/DesignCraft.app/Contents/MacOS/DesignCraft`.
+- Real flags of the desktop binary (`apps/designcraft/src/main.rs:346`): `--sample` (open the sample
+  magazine), `--control <port>` (JSON-lines control server; also `DESIGNCRAFT_CONTROL_PORT`),
+  `--version`, `--gpu-skip=<list>` (internal restart bookkeeping), plus any number of file paths.
+- **The CLI is not inside the `.app` on macOS.** The release ships it as a separate
+  `designcraft-cli-<version>-macos-<arch>.zip` (`docs/mcp.md`, `packaging/macos/package.sh`), and it is
+  *not* on `PATH` on this machine (`which designcraft-cli` → not found). Get it by downloading that asset,
+  or build it: `cargo run --release -p designcraft-cli -- <args>` (README.md §Quick start). Do not assume
+  a system-wide `designcraft-cli` exists.
+- State lives in `~/Library/Application Support/DesignCraft/`: `ui.json`, `prefs.json`,
+  `logs/designcraft.log` (rotates to `.1.log`/`.2.log`, 16 MiB cap), and `Recovery/`
+  (`apps/designcraft/src/profile.rs`, `crates/engine/src/recovery.rs`). `portable.txt` next to the app
+  switches to a `DesignCraftData` folder; `DESIGNCRAFT_CONFIG_DIR` overrides both.
 
-- Launch the app: `open -a "DesignCraft"` (bundle `/Applications/DesignCraft.app`,
-  id `ai.storyteller.designcraft`, installed 0.7.1).
-- Open documents at launch by passing paths (and flags) to the executable:
-  `/Applications/DesignCraft.app/Contents/MacOS/DesignCraft [--sample] [--control PORT] [FILE…]`
-  — positional files are opened with `file.open`; `--sample` opens the built-in magazine;
-  `--version` prints and exits (`apps/designcraft/src/main.rs:242-260,343-350`).
-- Prefer the **CLI/headless** route for automation; the macOS `.app` ships only the desktop
-  binary, the CLI is a separate release asset (`docs/mcp.md`).
-- A locked/unfocused screen still renders offscreen: use `ui.render` or
-  `designcraft-cli run --sample --all-pages DIR` (`docs/control-protocol.md`;
-  `apps/designcraft-cli/src/main.rs:283-290`).
+### CLI reference (exact, from `apps/designcraft-cli/src/main.rs`)
+```
+designcraft-cli run [--in FILE(.designcraft|.idml|.indd|.indt) | --sample] [--cmd ID[=JSON]]...
+                   [--page N] [--scale S] [--pdf-options JSON] [--export OUT] [--all-pages DIR]
+designcraft-cli commands [FILTER]          # every command as JSON; FILTER matches id/label/menu
+designcraft-cli describe COMMAND           # label, menu path, shortcut and parameters of one command
+designcraft-cli script [FILE|-] [--in FILE | --sample] [--connect PORT] [--save OUT]
+                       [--export OUT] [--keep-going] [--help]
+designcraft-cli app [--port PORT] COMMAND [JSON] | app --method METHOD [JSON]
+designcraft-cli mcp [--connect PORT] [--sample] [--automation-read-root DIR] [--automation-write-root DIR]
+designcraft-cli perf [--pages N] [--runs N] [--strict] | bench FILE [--runs N]
+designcraft-cli validate-pdf FILE.pdf | links | --version
+```
+- `--page`, `--scale` and `--pdf-options` apply to the `--export`s that **follow** them; one left after the
+  last export is an error.
+- `--export` picks the writer from the extension: `.png`/`.jpg`/`.jpeg` (a page), `.pdf`, `.designcraft`,
+  `.idml`, `.epub`, `.pptx`, `.html`/`.htm`, `.rtf`/`.txt`; an unknown extension is an error and *nothing
+  runs*; a name with no extension is a PNG of the page (`Export::of`).
+- `run --cmd ID=JSON` builds each command's params; `$N.path`/`$last.path` references earlier results;
+  unknown parameter keys are refused with "did you mean …" (`crates/engine/src/cmd/params.rs`,
+  `crates/engine/src/tests_params.rs:57`).
+- `script` prints `{"completed": n, "results": [...]}` plus `failedIndex`/`failedCommand`/`error` and exits
+  non-zero on failure; `--keep-going` records failures as results instead.
 
-### Environment variables (verified)
-
-| Variable | Effect |
-|---|---|
-| `DESIGNCRAFT_CONTROL_PORT` | starts the control channel like `--control` (`apps/designcraft/src/main.rs:246`) |
-| `DESIGNCRAFT_CONFIG_DIR` | isolates settings/recovery in a directory (`apps/designcraft/src/profile.rs:10-33`; `docs/control-protocol.md`) |
-| `DESIGNCRAFT_NO_PREFS` | reads/writes no preference files (`apps/designcraft/src/main.rs:95`) |
-| `WGPU_BACKEND` | forces `metal`/`dx12`/`vulkan`/`gl` for the compositing window (`README.md`) |
-| `RUST_LOG` | log levels; logs also go to `logs/designcraft.log` in the settings dir (`README.md`) |
-
-### Files and settings (macOS)
-
-- Settings dir: `~/Library/Application Support/DesignCraft/` — `ui.json`, `prefs.json`,
-  `gpu.json`, `logs/designcraft.log` (rotated, capped 16 MiB), `Recovery/` (`README.md`).
-- Coordinates in commands/scripts are **points (1/72 in), y down, in spread space**: a single
-  page’s top-left is (0,0); on a facing spread the right page starts at x = page width
-  (`docs/mcp.md` “Coordinates”). Text positions are **UTF-8 byte offsets**, not character counts
-  (`docs/mcp.md` “Text offsets”).
-
-### Core workflow concepts
-
-- Multiple documents open at once in tabs (`file.activate`/`file.close` in
-  `crates/engine/src/cmd/file.rs:55-63`; ⌘F6 cycles in `crates/ui-egui/src/menus.rs`).
-- A frame is drawn with the Rectangle/Ellipse/Polygon Frame tools or `frame.create`; a story
-  lives on one or more frames via threads; the loaded text cursor is what the port-click gesture
-  uses (`README.md`; `crates/engine/src/cmd/thread.rs`).
-- Parent pages hold repeated items; ⌘⇧-click a parent item to override it on a page
-  (`docs/target-app-parity.md`).
-- Undo is one step per gesture; commands are journaled and replayable as scripts
-  (`docs/architecture.md`).
+### Document and window model
+- Several documents open in tabs; each tab is its own `DocState` with its own undo history, selection and
+  (optionally) its own `Document Fonts` scope (`crates/engine/src/lib.rs`, `crates/ui-egui/src/chrome.rs`
+  — the document tab bar; `crates/engine/src/cmd/file.rs` `load_document_fonts`).
+- A document is spreads → pages → items; text lives in **stories** that are threaded through text frames;
+  parent pages contribute items behind a page's own (`crates/doc/src/{page,story,item}.rs`).
+- **Coordinates are points (1/72 in), y down, in spread space**: on a facing spread the right page starts at
+  `x = page width` (`docs/mcp.md` §Coordinates). `inspect_document` lists per-spread page bounds.
+- **Text offsets are UTF-8 byte offsets**, not character counts (`anchor`, `focus`, `story.replaceRange`,
+  `story.length`) — `docs/mcp.md` §Text offsets.
+- Commands that create items take `spread`: an integer, or `{"kind":"parent","index":N}` for a parent
+  spread (`crates/engine/src/cmd/mod.rs` `spread_param`).
 
 ### Open / save / export flows
+- Open: `File ▸ Open…` (`Cmd+O`, `file.open {path}`) — content-sniffed; `.idml` and `.indd`/`.indt` route
+  through the IDML interchange module. `File ▸ Open Recent` uses `file.recentFiles` / `file.openRecent`.
+- Save: `File ▸ Save` (`Cmd+S`, `file.save`) and `Save As…` (`Cmd+Shift+S`, `file.saveAs {path}`) write the
+  native `.designcraft` package (extension appended if missing). `file.saveACopy` writes a copy without
+  changing the open document. Writes are atomic (`designcraft_engine::atomic::write_atomic`).
+- Recovery: unsaved documents are written to the recovery folder on a timer and reopened after a crash
+  (`crates/engine/src/recovery.rs`; `file.recovery.{save,list,open}`, `file.revert`).
+- Export: the `file.export*` commands above, or the CLI's `--export`. Every export returns
+  `{path, bytes, …}` and, where applicable, a `warnings` array — **read it** (e.g. `file.exportPdf` warns on
+  mixed gradient colour spaces and PDF/X-4 checks).
+- Package for hand-off: `File ▸ Package` (UI command `app.packageDialog`, `Cmd+Alt+Shift+P`; engine
+  `file.package`) relinks to a `Links` folder, copies placed files and document fonts, writes an IDML copy,
+  an optional PDF and a report (`crates/engine/src/cmd/package.rs`).
 
+### Verified recipes
 ```sh
-# GUI: File → Open (⌘O), Save (⌘S), Save As (⌘⇧S); File → Export PDF…, Export EPUB…, Export IDML…
-# Headless CLI (from a checkout or the CLI release asset):
-designcraft-cli run --sample --all-pages out/                    # one PNG per page
-designcraft-cli run --in doc.designcraft --export out.pdf
-designcraft-cli run --in doc.idml --export out.designcraft       # IDML → native
-designcraft-cli script page.dcs --in template.designcraft --save merged.designcraft --export page.pdf
-designcraft-cli app --method ui.screenshot '{"path": "/tmp/w.png"}'   # running app, port 7979
-```
+# Headless: build a page and export it three ways
+designcraft-cli run --sample \
+  --cmd 'frame.create={"rect":[36,36,540,300],"content":"text","text":"Hello"}' \
+  --export page.png --scale 2 --export page@2x.png --export page.pdf
 
-- `run` applies `--page`, `--scale`, `--pdf-options` to the exports that follow them; `.jpg`
-  selects JPEG, anything else raster is PNG; `.designcraft` writes native, `.idml` IDML,
-  `.pdf` PDF, `.epub` EPUB (`apps/designcraft-cli/src/main.rs:220-318`).
-- Every command is callable in the running app: `designcraft-cli app <command.id> '<json>'`,
-  or directly JSON-lines on the control port (`docs/agents.md`).
-- Frequently used verified shortcuts: ⌘N New, ⌘O Open, ⌘S Save, ⌘⇧S Save As, ⌘W Close,
-  ⌘D Place, ⌘Z/⌘⇧Z Undo/Redo, ⌘C/⌘X/⌘V clipboard, ⌘⇧V Paste without Formatting, ⌘F Find/Change,
-  ⌘K Preferences, ⌘E Export Page as PNG, ⌘Return Quick Apply, ⌘J Go to Page, Tab/⇧Tab hide/show
-  panels (`crates/engine/src/cmd/*.rs` shortcut fields;
-  `crates/ui-egui/src/menus.rs` UI_COMMANDS). Do not assume other InDesign shortcuts exist —
-  query `designcraft-cli describe <id>`.
+# Discover then call a command (never guess params)
+designcraft-cli commands footnote
+designcraft-cli describe xref.insert
+
+# A script with references to earlier results, saved and exported
+printf '%s\n' \
+  'frame.create {"rect": [72, 72, 540, 300], "content": "text", "text": "Results"}' \
+  'text.select {"story": "$0.story", "anchor": 0, "focus": 0}' \
+  'footnote.insert {"text": "Survey run in 2026."}' > page.dcs
+designcraft-cli script page.dcs --save page.designcraft --export page.pdf --export page.png
+
+# Drive a running app (start it with a control port first)
+designcraft --sample --control 7979 &
+designcraft-cli app document.inspect
+designcraft-cli app --method ui.screenshot '{"path":"/tmp/window.png"}'
+designcraft-cli script page.dcs --connect 7979
+```
+MCP registration (`docs/mcp.md`):
+```sh
+claude mcp add designcraft -- designcraft-cli mcp \
+  --automation-read-root /work/project --automation-write-root /work/project/out
+```
+The two root flags confine every path a *command* reads or writes (open, place, data sources, libraries,
+saves, exports, packaging); a root left out grants none of that access, and `--connect` together with the
+roots is an error (`docs/mcp.md` §Confining file access, `crates/engine/src/file_access.rs`).
 
 ## Working with an AI agent
 
-Legitimate, evidence-backed jobs:
+**Legitimate and productive**
+1. **Prepare inputs.** Rasterise/convert to formats `crates/images` reads (PNG, JPEG, GIF, WebP, TIFF, BMP,
+   PSD composite), author SVG or single-page PDF for vector/print art, write `.docx`/`.rtf`/`.txt`/`.md`
+   for copy, and CSV/TSV/XLSX for Data Merge. Generate a magazine-style test document with
+   `file.newSample` or `designcraft-cli run --sample`.
+2. **Drive it through commands, not pixels.** Prefer `designcraft-cli run --cmd`, `script` with `$N.path`
+   wiring, MCP `batch`, or the control channel. Every gesture path also exists (`ui.pointer`, `key`,
+   `type_text`, `ime`, `dialog_*`), but commands are deterministic, faster, and give you JSON back.
+3. **Look at the result.** `render_page`/`export_png`/`ui.render` return or write PNGs — read the image
+   after layout work instead of trusting command exit codes. `ui.screenshot` gives the whole window.
+4. **Inspect programmatically.** `document.inspect`, `story.get` (including `overset`), `links.list`,
+   `font.list`, `preflight.run {minPpi?}`, `view.separations`, `document.preferences` tell you the real
+   state; `designcraft-cli describe` tells you a command's exact parameter names before you call it.
+5. **Repair and analyse native files.** A `.designcraft` is a zip: `unzip -o f.designcraft -d f/` then read
+   `document.json`, `meta.json` and `assets/`. Useful for auditing what a document references, extracting
+   placed files, or spotting a missing asset. **Re-zipping by hand is risky**: the reader requires
+   `document.json`, honours `meta.json`'s `version` (a version above 3 is refused with "please update"),
+   and runs `Document::check()` plus asset wiring on load, so a hand-edited model that violates invariants
+   may be refused rather than repaired. Prefer opening the file and re-saving through a command.
+6. **Verify exports.** `designcraft-cli validate-pdf out.pdf` (PDF/X-4 checks), `preflight.run` before
+   export, `story.get` for overset text, `links.list` for missing images, and the `warnings` array of every
+   export result.
+7. **Work on throwaway copies.** Copy the project file before an agent session and work in a temp folder —
+   `DESIGNCRAFT_CONFIG_DIR=$TMP/dc-profile` isolates preferences and the recovery folder for a test run.
 
-- **Preferred integration: headless CLI or MCP in headless mode** (`designcraft-cli mcp`), which
-  needs no window and returns page images as PNG (`docs/mcp.md`). Connected mode
-  (`--connect PORT`) drives the live app and the change is visible in the window.
-- **Compose whole documents from commands**: `file.new` → `frame.create` → `text.insert`/
-  `story.setText` → `type.*`/`style.*` → `file.place` → `file.exportPdf`, all documented by
-  `designcraft-cli describe` and `docs/mcp.md`.
-- **Prepare importable assets:** rasterize/convert images to PNG/JPEG/TIFF/WebP, keep CMYK
-  TIFF/JPEG when ink fidelity matters (`docs/file-format-parity.md`); convert text sources to
-  `.docx`/`.rtf`/`.txt` or CSV/TSV/`.xlsx` for Data Merge; unsupported inputs (HEIC, `.xls`,
-  `.indd`, `.doc`, `.qxd`) must be converted elsewhere first.
-- **Interpret/repair native projects:** `.designcraft` is zip + `document.json` (serde model in
-  `designcraft-doc`), assets under `assets/<id>.<ext>`, `meta.json.format/version`
-  (`crates/format/src/lib.rs`); format ≤ 2 loads, > 2 errors with “update DesignCraft”. Repair by
-  editing JSON only in a copy, then reopen with `file.open` in a throwaway session.
-- **Verify exports:** check the command result (`file.exportPdf` returns `pages`, `bytes`,
-  `warnings`), run `designcraft-cli validate-pdf out.pdf` for PDF/X-4, reopen IDML/EPUB/HTML
-  outputs, and render pages with `ui.render`/`render_page` for visual checks.
-- **Batch at scale:** `script` files and MCP `batch` with `$N.path` references; run one
-  `$CARGO_TARGET_DIR` per parallel agent in a checkout (`docs/agents.md`; `AGENTS.md`).
-
-Must NOT / cautions:
-
-- Do not drive the **GUI blind**: keyboard/menu state depends on focus and platform; prefer
-  commands, CLI, MCP or the control channel, and look at `ui.screenshot` before and after UI
-  gestures (`docs/control-protocol.md`).
-- Do not assume `.indd`, ExtendScript/UXP, `.joboptions`, PDF/X-1a/X-3, IME input or live
-  HTML animation exist (see limitations).
-- Do not use `app.quit` to close the app when unsaved work matters — `app.quit` quits without
-  asking, unlike the ⌘Q/menu command (`docs/control-protocol.md` method table).
-- Do not rely on Finder double-click opening `.designcraft` (macOS bundle declares `pcraft`).
-- Do not use the control port on untrusted networks: it is loopback-only but unauthenticated
-  (`docs/control-protocol.md`).
+**Do not attempt**
+- Do not read capabilities out of InDesign documentation or assume parity: check `docs/gaps.md` and
+  `designcraft-cli describe`. ExtendScript, UXP, `.joboptions` presets, plug-ins and Adobe cloud features
+  do not exist (`docs/gaps.md` §§22, 23, "Out of scope").
+- Do not assume the CLI or MCP server is installed: on macOS the `.app` holds only the desktop app
+  (`docs/mcp.md`; verified on this machine). Build or download it first, and say so to the user.
+- Do not interpret EPS/PostScript or expect `.indd`/`.indt` fidelity, INDB/INDL, or QuarkXPress import.
+- Do not hand-craft IDML as an input format expecting a lossless round-trip — the importer is broad but
+  unmeasured on real InDesign files (`docs/gaps.md` §3).
+- Do not drive the GUI blind (blind coordinate clicks, no screenshot/inspect feedback), and never run
+  `--control` on a port you do not control: the channel has no authentication (`docs/control-protocol.md`).
+- Do not edit the repository to change app behaviour; use documents, preferences and commands.
 
 ## Verification protocol
 
-1. **Throwaway round-trip before real work:** new → add content → save `.designcraft` → export
-   PDF/PNG → reopen the saved file and an exported IDML in a fresh session; confirm page count,
-   story lengths (`document.inspect`) and bytes before trusting an output.
-2. **Never trust a silent export:** read the returned `warnings` array (PDF export, `file.open`
-   font warnings) and open the artifact elsewhere; PDF conformance for X-4 via
-   `designcraft-cli validate-pdf`.
-3. **Version and back up project files per session:** recovery autosaves every 30 s but is not a
-   backup; save explicit copies (`file.saveACopy`) before large edits, and remember HEAD (0.8.0)
-   may be newer than the installed app (0.7.1) — features in this skill can be absent or
-   different in your install.
-4. **Update the app only between projects**, never mid-layout; older documents open (format 1/2
-   upgrade on load) but newer-than-install files refuse with “please update”.
-5. **Exercise the alpha blocker:** long stories in a Primary Text Frame document can gain pages
-   that cannot be deleted (#165) — thread manually (`text.thread`) or keep primary-text-frame
-   autoflow out of test documents.
+DesignCraft is pre-alpha: treat every export as unverified until you have looked at it. The discipline:
+
+1. **Throwaway round-trip first.** With every version, before real work: new document (`file.new` or
+   `--sample`) → one edit → `--save` a `.designcraft` → reopen it (`--in`) → export the same page to PNG
+   *and* PDF → check the PNG visually and the PDF with `validate-pdf` if you asked for `standard: "x4"`.
+   If any step fails or the geometry moved, stop and report; do not build a bigger job on top.
+2. **Never trust a silent export.** Read the JSON result (`bytes`, `pages`, `slides`, `warnings`) *and*
+   confirm the file exists and is non-empty. A page export with no `--export` after it is a usage error,
+   not a no-op, so partial runs fail loudly — except that a failed *step* in a non-`--keep-going` script
+   still leaves earlier steps applied in the live app: re-inspect the document before retrying.
+3. **Version and back up per session.** The format version is part of the file (`meta.json`); an older app
+   refuses a newer document (`FormatError::TooNew`). Keep a copy of the project file at the start of an
+   agent session, and if you must deliver files to someone on an older build, test one round-trip on their
+   version first.
+4. **Update between projects, not during one.** The app is installed and updated by ArtCraft Launcher
+   (`docs/user/getting-started/install.md` §Install with ArtCraft Launcher). After an update, re-verify
+   the bundle version and build commit before trusting earlier measurements:
+   `plutil -p /Applications/DesignCraft.app/Contents/Info.plist | grep -E 'Version|BuildCommit'`
+   (at this tag: `0.9.0`, commit `7cb8b12507def48fb9346e5004340b5e8e4cfcb7`).
+5. **Isolate test runs.** `DESIGNCRAFT_CONFIG_DIR` to a scratch folder, `DESIGNCRAFT_NO_PREFS` to avoid
+   writing preferences, and `--automation-read-root`/`--automation-write-root` when an agent drives MCP.
+6. **Prefer re-opening over re-editing.** Because the reader upgrades and validates on load, a save →
+   reopen cycle is the cheapest proof that an edit produced a valid document.
+
+*Verify against your installed version.* The repository at this tag and the installed bundle currently
+match exactly (same commit); if the launcher has since updated DesignCraft, re-run step 4 and re-check any
+command parameters with `designcraft-cli describe` before relying on them.
 
 ## Sources & evidence
 
-- Repo: https://github.com/storytold/designcraft (org `storytold`), inspected at HEAD
-  `11a51d5b665aec8d6e675bd107a8a01514f10d00` (“Release 0.8.0”), on 2026-10-14.
-- Installed app: `/Applications/DesignCraft.app` 0.7.1 (`CFBundleShortVersionString`,
-  `DesignCraftBuildCommit` 3624f488192a8eeade11bd27609c9e5056214e75) — **verify against your
-  installed version**.
-- Key files read: `README.md`, `Cargo.toml`, `ROADMAP.md`, `AGENTS.md`,
-  `docs/agents.md`, `docs/mcp.md`, `docs/control-protocol.md`, `docs/architecture.md`,
-  `docs/gaps.md`, `docs/target-app-parity.md`, `docs/typography-parity.md`,
-  `docs/file-format-parity.md`, `docs/ui-parity.md`, `docs/hardware-parity.md`, `docs/roadmap.md`,
-  `apps/designcraft/src/main.rs`, `apps/designcraft/src/profile.rs`,
-  `apps/designcraft-cli/src/main.rs`, `crates/engine/src/cmd/mod.rs`, `file.rs`, `export.rs`,
-  `interchange.rs`, `thread.rs`, `crates/format/src/lib.rs`, `crates/textimport/src/lib.rs`,
-  `crates/ui-egui/src/menus.rs`, `crates/ui-egui/src/control.rs`,
-  `packaging/macos/Info.plist.in`.
-- Deeper surface reference: `references/agent-surfaces.md` (CLI, MCP, control channel, script
-  syntax at a glance). Ground truth is always the running app itself:
-  `designcraft-cli commands` / `describe`.
+- Repository: https://github.com/storytold/designcraft — inspected at tag **v0.9.0**, commit
+  **`7cb8b12507def48fb9346e5004340b5e8e4cfcb7`** (`git rev-parse HEAD`), 2026-10-18.
+- Installed app: `/Applications/DesignCraft.app`, `CFBundleShortVersionString 0.9.0`,
+  `DesignCraftBuildCommit 7cb8b12507def48fb9346e5004340b5e8e4cfcb7`, `LSMinimumSystemVersion 11.0`
+  (`Contents/Info.plist`; the bundle was inspected, never launched).
+- Read for this skill: `README.md`, `Cargo.toml`, `ROADMAP.md`, `docs/agents.md`, `docs/mcp.md`,
+  `docs/control-protocol.md`, `docs/gaps.md`, `docs/target-app-parity.md`,
+  `docs/user/getting-started/install.md`, `apps/designcraft/src/main.rs`,
+  `apps/designcraft-cli/src/{main,automation_args}.rs`, `crates/format/src/lib.rs`,
+  `crates/engine/src/{lib,script,guard,recovery}.rs`, `crates/engine/src/cmd/{mod,file,export,interchange,preflight,scripts}.rs`,
+  `crates/mcp/src/tools.rs`, `crates/ui-egui/src/{control,menus}.rs`, `apps/designcraft/src/{control_server,profile}.rs`,
+  and the per-crate `Cargo.toml` descriptions for `crates/{pdf,epub,pptx,idml,images,textimport}`.
+- Live discovery beats this document for details: `designcraft-cli commands`, `designcraft-cli describe ID`,
+  and `docs/gaps.md` (the maintainers' ranked work list).

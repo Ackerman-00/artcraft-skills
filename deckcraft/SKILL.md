@@ -1,345 +1,247 @@
 ---
 name: deckcraft
-description: DeckCraft is an open-source, pure-Rust desktop presentation app (macOS, Windows, Linux, FreeBSD + web; a clean-room reimplementation of Microsoft PowerPoint) that opens and saves PowerPoint .pptx and native .deckcraft files, exports PDF/PNG/JPEG/outline, and is fully scriptable through commands, a CLI, a JSON control channel and an MCP server. Trigger this skill whenever the user mentions DeckCraft, or asks to create, edit, convert, inspect, render, present, automate or troubleshoot a presentation, deck, slideshow or slide file (.pptx, .potx, .ppsx, .deckcraft), wants slides exported to PDF/images, wants assets prepared for a deck, asks what DeckCraft can or cannot do or which formats it supports — even when they don't name the app but describe its job ("open this pptx", "build me a deck", "export these slides to PDF", "script slide editing"). Use it before assuming any PowerPoint feature exists in DeckCraft.
+description: >-
+  DeckCraft is the open-source, clean-room PowerPoint-compatible presentation app for macOS
+  (also Windows, Linux, FreeBSD and the web): slides, masters, shapes, text, tables, charts,
+  SmartArt, media, transitions, animations, slide shows, `.pptx`/`.deckcraft` files, PDF/PNG/
+  JPEG/GIF export, a JSON control channel, a CLI and an MCP server. Trigger this skill whenever
+  the user mentions DeckCraft, `.deckcraft`, or asks to build, edit, inspect, convert, render,
+  present, export or troubleshoot a slide deck or presentation — especially when they want it
+  automated or scripted, want assets prepared for it, or need its output verified. Also trigger
+  when the user describes the job without naming the app ("make a deck", "turn this outline into
+  slides", "export these slides to PDF", "why did my PPTX lose its animations?", "drive a
+  presentation app with an agent").
 ---
-
-# DeckCraft
 
 ## Overview
 
-DeckCraft is presentations and slide-show software: an open-source, clean-room reimplementation of
-Microsoft PowerPoint, written from scratch in pure Rust (README.md:13). Source:
-https://github.com/storytold/deckcraft (GitHub org `storytold`), dual-licensed MIT OR Apache-2.0.
-It is in **alpha**: 79% of PowerPoint's feature breadth measured, ~55% ready for real work estimated
-(ROADMAP.md:17-19). HEAD inspected is version 0.7.0, 117k lines in 23 crates (docs/architecture.md:7).
-One engine backs the GUI (egui/eframe), the headless CLI, a JSON control channel, an MCP server and a
-WASM build, and every action is a command, so humans and agents use the same verbs
-(docs/architecture.md:40-47). Crashes are guarded: `Session::execute` runs every command inside a
-panic guard that keeps the document as it was (crates/engine/src/guard.rs:1-60).
+DeckCraft is an open-source (MIT OR Apache-2.0), clean-room reimplementation of Microsoft PowerPoint, written in pure Rust: it builds decks with masters/layouts, shapes, text, tables, charts, SmartArt and media; presents them full screen; and exchanges PowerPoint `.pptx` plus its own `.deckcraft` format (README.md:13, 64-80; Cargo.toml:1-8). It is **alpha**: v0.8.0, claiming **84% feature breadth** and **~55% ready for real work** by its own measurement (ROADMAP.md:3, 17-23). Native builds target macOS, Windows, Linux and FreeBSD, with a WebAssembly build for browsers (README.md:201-230). Source: `github.com/storytold/deckcraft` (Cargo.toml:11).
 
-The installed `/Applications/DeckCraft.app` is **0.6.1** (Contents/Info.plist) while this skill
-describes HEAD 0.7.0 — verify against your installed version.
+**Audit basis:** this checkout is tag `v0.8.0`, commit `22db9261f9d1a214c296fd390173130c45d76d66`. The installed `/Applications/DeckCraft.app` reports `CFBundleShortVersionString 0.8.0` and `DeckCraftBuildCommit 22db9261f9d1a214c296fd390173130c45d76d66`, so the bundle matches this source exactly. **Verify against your installed version** if the ArtCraft Launcher has auto-updated since: the code is moving quickly, and some `docs/` pages already lag the code (see the final bullets in “Sources & evidence”).
 
 ## Capabilities (verified)
 
-Tier labels: **[impl]** implemented and wired; **[partial]** works but visibly incomplete;
-**[none]** absent.
-
-### Decks, masters, themes, layouts
-- **[impl]** New/open/save/close/export documents from one `file.*` command family, plus
-  AutoRecover (crates/engine/src/cmd/file.rs:9-45).
-- **[impl]** 8 built-in themes (DeckCraft, Harbor, Ember, Meadow, Nocturne, Paper, Coral Reef,
-  Slate; crates/model/src/theme.rs:153-225), 11 layouts (crates/model/src/defaults.rs:299-461),
-  slide masters and layout editing (`master.*`, `view.slideMaster`, `view.closeMaster`;
-  crates/engine/src/cmd/design.rs, crates/engine/src/cmd/slide.rs).
-- **[impl]** Sections (`section.add/rename/move/removeAll`), notes (`slide.notes`), hiding slides
-  (`slide.hide`), custom slide size and header/footer (`design.slideSize`, `design.headerFooter`;
-  crates/engine/src/cmd/slide.rs:37-49, crates/engine/src/cmd/design.rs).
-- **[impl]** `slide.new` with layout name/kind, title and body; `slide.fromOutline` builds slides
-  from outline text (crates/engine/src/cmd/slide.rs:14-26, :50).
-
-### Drawing and shapes
-- **[impl]** `shape.insert` preset shapes; `shape.presets` returns the gallery: 183 catalog entries
-  at HEAD (crates/engine/src/cmd/insert.rs:183-187, crates/geom/src/preset.rs:147+); adjust handles
-  (`shape.adjust`), change shape, rotate/flip, move/resize/set bounds (crates/engine/src/cmd/shape.rs:33-39).
-- **[impl]** Connectors glued to shapes (`shape.connect`, `shape.sites`), freeform/curve (smooth)
-  and merge ops `union|combine|fragment|intersect|subtract` (crates/engine/src/cmd/shape.rs:14-32,
-  crates/engine/src/cmd/merge.rs:147).
-- **[impl]** Fills (solid, gradient, picture, pattern), outlines with dashes and arrowheads, shadow,
-  glow, soft edges, reflection, alt text, rename, visibility (crates/engine/src/cmd/shape.rs:40+).
-
-### Text
-- **[impl]** In-place editing and text ops through `text.edit`, `text.insert`, `text.delete`,
-  `text.select*`, `text.get`, `text.commit`, `text.exit` (crates/engine/src/cmd/text.rs); formatting
-  through `format.*`: bold/italic/underline, font, size, alignment, indent/outdent, columns,
-  autofit, caps, highlight, wrap, subscript/superscript (crates/engine/src/cmd/format.rs:12+).
-- **[impl]** WordArt text warp (`insert.wordArt`), fields and hyperlinks (`insert.hyperlink`,
-  `Cmd+K`), symbols, slide numbers, date fields (crates/engine/src/cmd/insert.rs:46-60).
+### Deck structure and design
+- **Slides, masters and layouts.** Eleven layout kinds (Title, Title and Content, Section Header, Two Content, Comparison, Title Only, Blank, Content with Caption, Picture with Caption, Title and Vertical Text, Vertical Title and Text) plus `Custom` (`crates/model/src/lib.rs:679-710`). Slide masters, notes master, handout master, placeholder inheritance, sections, notes, comments, headers/footers, custom shows and custom slide sizes are modelled (`crates/model/src/lib.rs`; `crates/engine/src/cmd/slide.rs:45-58`; `crates/engine/src/cmd/design.rs:52-61`; `crates/engine/src/cmd/review.rs:13-17`).
+- **Themes.** Eight built-in themes — DeckCraft, Harbor, Ember, Meadow, Nocturne, Paper, Coral Reef, Slate — each with colour, font and effect schemes; four variants per theme; Browse for Themes imports `.thmx`, `.pptx` or `.potx` (`crates/model/src/theme.rs:155-175, 178-260`; `crates/engine/src/cmd/design.rs:17-40, 148-174`; `crates/pptx/src/lib.rs:66-69`).
+- **Starter decks.** Six original starters — Briefing, Lesson, Pitch, Field Notes, Quarterly, Evening Talk — via `file.new {template}` (`crates/engine/src/templates.rs:37-168`; `crates/engine/src/cmd/file.rs:20`).
+- **Shapes.** 183 shape/connector presets in the catalogue, with adjust handles, connectors that stay glued, freeform/curve/scribble tools, merge operations (union, combine, fragment, intersect, subtract), gradient/picture/pattern fills, dashes, arrowheads, shadows, glow, soft edges and reflections (`crates/geom/src/preset.rs:147`; `crates/engine/src/cmd/shape.rs:14-150`; `crates/engine/src/cmd/merge.rs`; `crates/engine/src/cmd/picture_style.rs`).
+- **Text.** In-place editing with DrawingML run/paragraph properties, bullets and numbering, columns, autofit (none/shrink/resize), vertical and RTL text, fields, hyperlinks, tab stops, line spacing and text warps (`crates/engine/src/cmd/text.rs:17-90`; `crates/engine/src/cmd/format.rs:18-215`; `crates/model/src/text.rs`; `crates/geom/src/warp.rs`).
+- **Tables.** Styled tables with cell merges, diagonal borders, row/column insert/delete, distribution, heights and borders (`crates/engine/src/cmd/table.rs`; `crates/pptx/tests/corpus_charts.rs` covers merged tables and diagonals).
 
 ### Content
-- **[impl]** Pictures from file or base64 (`insert.picture`) with crop/reset (crates/engine/src/cmd/insert.rs:27-35;
-  image types accepted: png/jpeg/gif/webp/bmp/tiff, crates/engine/src/cmd/insert.rs:237-250).
-- **[impl]** Tables (`insert.table`, merge/split, rows/columns, widths; crates/engine/src/cmd/table.rs),
-  charts (`insert.chart`, `chart.type`, `chart.data`, `chart.options`; column/bar/line/pie/doughnut/
-  area/scatter/stacked…; crates/model/src/chart.rs:11-70, crates/engine/src/cmd/insert.rs:37-79).
-- **[impl]** SmartArt basics (`insert.smartArt` kinds list|process|cycle|hierarchy|pyramid|matrix as
-  pre-drawn shapes; crates/engine/src/cmd/insert.rs:80-88; see limitations).
-- **[impl]** Audio/video from file (`insert.audio`, `insert.video`) and playback commands
-  (`media.play/pause/stop/seek/toggle/info`, GIF play; crates/engine/src/cmd/media.rs:13-38).
-  Decodable media: MP3, AAC/M4A, ALAC, WAV, AIFF, CAF, FLAC, Ogg Vorbis, Opus; H.264/HEVC in MP4/MOV;
-  VP9/AV1 in WebM/MKV (docs/file-format-parity.md:43-47).
-- **[impl]** Action buttons and hyperlinks/actions (`insert.actionButton`, `insert.hyperlink`;
-  crates/engine/src/cmd/insert.rs:52-97).
+- **Pictures.** PNG, JPEG, GIF (including animated GIFs), WebP, BMP and TIFF are decoded; EMF/WMF are drawn through `deckcraft-metafile` when they arrive inside a deck (`crates/render/src/images.rs:119-134`; `crates/metafile/src/lib.rs:20-30`; `docs/file-format-parity.md:39-42`). Crop, brightness/contrast, duotone, alpha and some artistic effects are modelled (`crates/engine/src/cmd/picture_style.rs`; `crates/engine/src/cmd/artistic.rs`).
+- **Charts.** 28 chart types in the model, including the seven Office-2016 `chartEx` types (waterfall, funnel, histogram, Pareto, box & whisker, treemap, sunburst), plus radar, stock, region map (kept and drawn, not offered in the menus) and combo (`crates/model/src/chart.rs:9-41`). Insert with categories/series (`insert.chart`), edit data with `chart.data` or the Chart Data dialog, change type with `chart.type`; trendlines are drawn (`crates/engine/src/cmd/insert.rs:66-72, 108-114, 1716`; `crates/model/src/chart.rs`; `crates/pptx/src/read/chart.rs`).
+- **SmartArt.** A SmartArt graphic is a group whose outline is edited in a Text Pane; 45 layouts and 9 styles, with Add Shape, Promote, Demote, Remove and layout switching; saved to `.pptx` as a real diagram (`crates/engine/src/cmd/smartart.rs:26-80`; `crates/pptx/src/dgm.rs`).
+- **Media.** Audio: MP3, AAC/M4A, ALAC, WAV, AIFF, CAF, FLAC, Ogg Vorbis and Opus. Video: H.264, HEVC, VP9 and AV1 in MP4/MOV/WebM/MKV, software-decoded in pure Rust (`crates/media/src/lib.rs:1-25`; `crates/engine/src/cmd/insert.rs:74-75, 319-373`).
+- **Other insertables.** Lucide 1.56 stroke icons as custom shapes (`insert.icon`), WordArt, symbols, date/time fields, slide numbers and an equation dialog that inserts styled text (not OMML) (`crates/engine/src/icons.rs`; `crates/engine/src/cmd/insert.rs:26-134`; `crates/ui-egui/src/dialogs.rs:1699-1706`).
 
 ### Presenting
-- **[impl]** 48/48 PowerPoint transitions including Morph with Words-and-Characters, measured frame
-  by frame against PowerPoint (docs/animation-parity.md:9-48; model list in crates/model/src/anim.rs);
-  64 animation effects with start/duration/delay/triggers/by-paragraph builds and Animation Painter
-  (docs/animation-parity.md:50-78; crates/engine/src/cmd/animation.rs:13-63).
-- **[impl]** Full-screen show (`show.fromStart` Cmd+Shift+Enter, `show.fromCurrent` Cmd+Enter;
-  crates/engine/src/cmd/review.rs:20-21), presenter view, custom shows, Set Up Show (`show.setup`,
-  `show.customShow`; crates/engine/src/cmd/review.rs:25-40), rehearse timings, pen in the show
-  (docs/slideshow-parity.md:11-56).
-- **[impl]** Comments with replies/resolve (`comment.*` Cmd+Alt+M), accessibility check,
-  spelling against a small built-in list (`review.spelling` F7; crates/engine/src/cmd/review.rs:13-19).
+- **48 transitions plus “None”** (49 rows), including Morph, with each transition’s effect options (`crates/model/src/anim.rs:52-106`; `docs/animation-parity.md:16-40`).
+- **Animations.** 106 picker entries: 64 non-path effects (24 entrance, 23 exit, 17 emphasis), 39 motion paths and 3 media controls; start modes (on click / with previous / after previous), by-paragraph builds, triggers, repeat and bounce end (`crates/model/src/anim.rs:320-437`; `crates/engine/src/cmd/animation.rs`; `docs/animation-parity.md:50-57`).
+- **Slide show.** Full-screen show, presenter view in a second window, pen and laser pointer, black/white screens, See All Slides, zoom, hyperlinks/actions, custom shows, rehearse timings and media playback (`crates/ui-egui/src/show.rs:1-40, 430-500`; `crates/engine/src/cmd/review.rs:63-90`; `docs/control-protocol.md:30-52`).
+- **Views.** Normal, Outline, Slide Sorter, Notes Page and Reading; slide/notes/handout master views (`crates/ui-egui/src/lib.rs:227-234`; `crates/ui-egui/src/ribbon.rs:154`).
 
 ### Files
-- **[impl] Open**: `.deckcraft` (native) and legacy `.slidecraft`, `.pptx`, `.potx`, `.ppsx`
-  (OOXML sniff), `.txt`/`.md` outlines (crates/engine/src/cmd/file.rs:67-87; crates/format/src/lib.rs:85-87;
-  crates/pptx/src/lib.rs:40-55).
-- **[impl] Save**: `.deckcraft` by default, `.pptx` when the extension says so; writes go to a
-  temp sibling then rename, so a failed save never truncates the old file (crates/engine/src/cmd/file.rs:185-200,
-  :216-226). `file.saveBytes`/`file.openBytes` move base64 data (browser-safe).
-- **[impl] Export** (`file.export`): PNG and JPEG (scale in px/pt, JPEG quality 92), PPTX,
-  DeckCraft, outline `.txt`/`.md`, and PDF with layouts slides|notes|handouts (1-9 per page), dpi
-  36-600, real text layer, links/bookmarks, slide ranges like `"1-3, 5"`, hidden slides and framing
-  (crates/engine/src/cmd/file.rs:18, :130-178, :272-319; crates/pdf/src/lib.rs:1-6,45-65).
-- **[impl]** Native `.deckcraft` format: zip holding `mimetype`
-  (`application/vnd.storyteller.deckcraft+zip`, stored), `presentation.json` (deflated model) and
-  `media/<id>` entries; readers ignore unknown fields; a `repair()` pass fixes missing layouts, ids
-  and sizes on load (crates/format/src/lib.rs:1-20, :43-73, :117-148).
-- **[impl]** AutoRecover: `file.recovery.list/open/save/discard`; entries are `<uid>.deckcraft` +
-  `<uid>.json` in `~/Library/Application Support/DeckCraft/Recovery` on macOS, opened at app start
-  (crates/engine/src/recovery.rs:1-30; apps/deckcraft/src/main.rs:201-210).
+- **Native `.deckcraft`:** a zip with a stored `mimetype`, `presentation.json` and `media/<id>` entries, format version 1; readers ignore unknown fields, and legacy `.slidecraft` files still open (`crates/format/src/lib.rs:1-24, 56-85`; `crates/format/src/lib.rs:15-18`).
+- **PowerPoint `.pptx`:** read and write; `.potx` and `.ppsx` open, and v0.8.0 writes the correct template/slideshow content type (`crates/pptx/src/lib.rs:61-85`; test `crates/pptx/tests/roundtrip.rs:1089`). Unknown parts are kept as `Opaque`/raw XML where the model does not understand them (`docs/architecture.md:64-69`).
+- **Outline text:** `.txt` and `.md` import (outline levels; Markdown headings become slides) and `.txt`/`.md` export (`crates/engine/src/cmd/file.rs:149-156`; `crates/format/src/lib.rs:412-523`).
+- **PDF:** slides, notes pages or handouts (1/2/3/4/6/9 per page), Letter/A4/Legal/A3, portrait/landscape, hidden-slide and slide-range options, selectable invisible text layer and bookmarks; slide artwork itself is a raster image (`crates/pdf/src/lib.rs:67-105, 451-462`; `crates/engine/src/cmd/file.rs:274-337`).
+- **Images and GIF:** PNG/JPEG per slide (one or all), and an animated GIF of the deck (one frame per slide, 16-3840 px wide, 0.1-600 s per slide, loop or play once, slide range, hidden slides skipped) (`crates/engine/src/cmd/file.rs:481-545`; `crates/engine/src/gif_export.rs:1-35`).
+- **AutoRecover:** unsaved presentations are written to a recovery folder and reopened at the next start; saving or closing removes the entry (`crates/engine/src/recovery.rs:1-35`; `apps/deckcraft/src/main.rs:240-247`).
 
-### Automation surface
-- **[impl]** 233 command specs registered at HEAD via the `cmd!` macro (`command_specs()`;
-  crates/engine/src/cmd/mod.rs:111-147) plus 36 UI-only commands such as `view.sorter`,
-  `app.print`, `show.start` F5 (crates/ui-egui/src/lib.rs:136-179). Each has id, label, menu path,
-  shortcut, params doc and an `enabled` reason — list them live with `deckcraft-cli commands`.
-- **[impl]** `deckcraft-cli` headless: `info`, `render`, `render-transition`, `convert`, `run`,
-  `commands`, `describe`, `app`, `mcp`, `links`, `--version` (apps/deckcraft-cli/src/main.rs:36-45).
-- **[impl]** JSON control channel: `deckcraft --control <port>` (or `DECKCRAFT_CONTROL_PORT`),
-  bound to 127.0.0.1 only, one JSON request/reply per line (apps/deckcraft/src/control_server.rs:14-21;
-  docs/control-protocol.md).
-- **[impl]** MCP server over stdio: `deckcraft-cli mcp` (headless) or `--connect PORT` (drives a
-  running app); JSON-RPC 2.0 (crates/mcp/src/lib.rs:3-14; tool list crates/mcp/src/tools.rs:65-279).
+### Automation
+- **320 commands**, each with id, label, ribbon/menu place, shortcut, parameter docs, enabled check and run function, registered in 28 modules (`crates/engine/src/cmd/mod.rs:161-192`; count of `cmd!` specs = 320). `Session::execute` is the single dispatch path used by the UI, CLI, control channel and MCP (`crates/engine/src/lib.rs:579-600`).
+- **`deckcraft-cli`:** `info`, `render`, `render-transition`, `convert`, `run`, `commands`, `describe`, `app`, `mcp`, `bench`, `links`, `version` (`apps/deckcraft-cli/src/main.rs:35-83`; `apps/deckcraft-cli/src/help.rs:8-157`).
+- **JSON control channel:** `deckcraft --control PORT` listens on `127.0.0.1` only and speaks one JSON object per line; methods include `engine.execute`, `document.inspect`, `ui.inspect`, `ui.pointer`, `ui.key`, `ui.text`, `ui.dialog.open`, `ui.screenshot`, `ui.render`, `show.start`, `app.open/save/export/quit` (`docs/control-protocol.md:1-52`; `apps/deckcraft/src/control_server.rs:44-58`).
+- **MCP:** `deckcraft-cli mcp` serves 25 tools over stdio — `list_commands`, `run_command`, `batch`, `new_presentation`, `open_presentation`, `save_presentation`, `export`, `inspect_document`, `inspect_slide`, `render_slide`, `add_slide`, `go_to_slide`, `add_shape`, `add_text_box`, `set_text`, `insert_picture`, `insert_table`, `insert_chart`, `select`, `pointer`, `select_tool`, `key`, `type_text`, plus `screenshot` and `call_app` in connected mode (`crates/mcp/src/tools.rs:65-290`; `docs/mcp.md:80-104`). It also exposes `deckcraft://document` and `deckcraft://commands` resources (`crates/mcp/src/server.rs:31-32, 157-165`).
+- **File confinement:** `--automation-read-root` / `--automation-write-root` confine every path a command reads or writes (open, pictures, audio, video, save, export, render output); they cannot be combined with `--connect` (`docs/mcp.md:28-78`; `apps/deckcraft-cli/src/main.rs:588-635`).
 
-### Platform
-- **[impl]** Native macOS/Windows/Linux/FreeBSD desktop builds, plus a WebAssembly web build that
-  shares the same UI (apps/deckcraft-web/src/main.rs:1-16; README.md:164-222). Web differences: no
-  TCP control channel, no persisted preferences, Save/Export are browser downloads
-  (apps/deckcraft-web/src/main.rs:7-16).
+### Platforms
+- **macOS 11+ universal app**, signed and notarized; Windows x64/arm64/x86, Linux (AppImage, Flatpak, deb, rpm, tarball), FreeBSD and a static WebAssembly site (`README.md:201-230`; `/Applications/DeckCraft.app/Contents/Info.plist`).
+- Rendering is CPU-side through `vello_cpu`; the UI is `egui`/`eframe` (`Cargo.toml:57-71`; `docs/architecture.md:49-60`). The web build uses WebGPU with a WebGL2 fallback and downloads files instead of using save dialogs (`apps/deckcraft-web/src/main.rs:1-25`; `apps/deckcraft-web/src/Cargo.toml:23-25`).
 
 ## Known limitations and not-implemented
 
-Comprehensive, ranked gap list: `docs/gaps.md` (reviewed 2026-10-13). The items an agent is most
-likely to trip over:
+### File exchange and PowerPoint fidelity
+- **No external deck corpus.** All PPTX round-trip tests use decks authored in this repo; fidelity on real corporate decks, templates, SmartArt, `chartex` and embedded fonts is “mostly unknown” by the project’s own admission (`docs/gaps.md:67-92`; `crates/pptx/tests/corpus*.rs`). The claim that exported `.pptx` opens in PowerPoint without repair is a docs claim, not independently verified here (`docs/architecture.md:64-69`).
+- **Known PPTX round-trip losses:** media playback options and animation rewind are not written back (#74, #77); a combo chart’s secondary axis is not written when the chart is rebuilt; editing a chart drops its embedded workbook; imported SmartArt is redrawn with DeckCraft’s simpler layout; MicroType Express embedded-font subsets are kept but not drawn (`docs/gaps.md:94-152`; `docs/file-format-parity.md:75-88`).
+- **Unsupported input formats:** legacy `.ppt`/`.pot`/`.pps` and OpenDocument `.odp` are not read; `.pptm`/`.potm`/`.ppsm` are not supported formats and their macros are not preserved or run (a macro-enabled package may still be read as plain OOXML); password-protected decks fail with a clear error, and there is no password protection on save (`crates/engine/src/cmd/file.rs:139-163, 340-348`; `docs/file-format-parity.md:17-25, 89-90`; `crates/pptx/src/lib.rs:56-58`).
 
-### Formats
-- **[none]** No import of legacy `.ppt`/`.pot`/`.pps` (97-2003), no `.odp`, no `.thmx`, no
-  `.pptm`/`.potm`/`.ppsm` (docs/file-format-parity.md:22-25; docs/gaps.md:95-105).
-- **[partial]** `.potx`/`.ppsx` open as plain presentations and are always **written as plain
-  `.pptx`** content type (`file.saveTemplate` is Save As under another name; docs/file-format-parity.md:20-21,
-  docs/gaps.md:87-93).
-- **[none]** Writing `.pptx` only (plus PDF/PNG/JPEG/outline above). No video MP4/MOV export, no
-  animated GIF, no TIFF/BMP/GIF slide images (docs/file-format-parity.md:29-32).
-- **[none]** No printing: Print routes through a PDF opened in the system viewer (docs/ui-parity.md:50;
-  docs/gaps.md:113-116).
-- **[none]** Embedded fonts are neither read nor written (docs/file-format-parity.md:52,87).
-- **[none]** SVG pictures do not render; a PPTX SVG shows only its raster fallback
-  (docs/gaps.md:78-85). EMF/WMF draw as vectors but without clip regions/EMF+ records (same entry).
-- **[partial]** PPTX has **never been tested against a corpus of real-world decks** — fidelity on
-  corporate templates, SmartArt, chartex charts, embedded fonts is unknown (docs/gaps.md:61-69).
-- **[partial]** PPTX round trip loses comment threads (written as legacy comments), media playback
-  options and animation rewind (#70/#74/#77; docs/gaps.md:71-76).
+### Pictures and media
+- **SVG is not rendered.** `insert.picture` accepts `image/svg+xml`, but the renderer has no SVG decoder, so an inserted SVG is not drawn; use PNG/JPEG. A PowerPoint file that stores a PNG fallback beside its SVG may still show that fallback (`crates/engine/src/cmd/insert.rs:366-394`; `crates/render/src/images.rs:119-134`; `docs/gaps.md:101-108`).
+- **HEIC is not supported.** EMF/WMF render when imported in a deck but are not sniffed by `insert.picture`; WMA/WMV are recognised but not decoded; online video embeds are not supported (`docs/file-format-parity.md:41-48`; `crates/engine/src/cmd/insert.rs:319-373`; `crates/media/src/lib.rs:4-7`).
+- **Web build is silent:** it has no `AudioOut`, so media plays without sound; it also has no TCP control channel and does not persist preferences (`apps/deckcraft-web/src/web.rs:114-140`; `apps/deckcraft-web/src/main.rs:8-15`).
+
+### Output
+- **PDF artwork is rasterized.** Each slide is placed as an image at print resolution under an invisible real-text layer; text is selectable/searchable, but the artwork is not vector. Large decks produce large PDFs and zoom/print quality follows the raster DPI (`crates/pdf/README.md:3-6`; `docs/gaps.md:130-134`).
+- **No native print dialog.** The File ▸ Print page builds a PDF and opens it in the system viewer/browser; there is no printer list, copies, sides or colour selection (`crates/ui-egui/src/lib.rs:806-828`; `docs/ui-parity.md` Print row).
+- **No MP4/MOV export.** Only an animated GIF exists; it shows one static frame per slide, with no transitions or build animations (`docs/gaps.md:141-147`; `crates/engine/src/gif_export.rs:1-8`). GIF is capped at 500 frames, 3840 px wide and 200M total pixels (`crates/engine/src/gif_export.rs:29-35`).
+
+### Platform and UI
+- **No native macOS menu bar.** `menus::menu_tree()` exists but nothing installs it; use the ribbon, command palette (`Cmd+Shift+P`, `crates/ui-egui/src/lib.rs:396`) or commands (`docs/ui-parity.md:24`; `crates/ui-egui/src/menus.rs:161`).
+- **Presenter view is a second window but is not assigned to the second display/projector** (`docs/gaps.md:304`; `crates/ui-egui/src/show.rs:1035-1037, 1757`).
+- **CPU rasterization and software video decode**; no GPU slide rendering or hardware decode (`docs/gaps.md:305-308`; `Cargo.toml:57`).
+- **English-only UI**, no string catalogue or RTL mirroring (`ROADMAP.md:85-106`).
+- **No pinch-zoom**; pen pressure works but tilt does not (`docs/gaps.md:309-314`).
 
 ### Feature depth
-- **[partial]** Fonts: only Regular, Bold and Italic faces — Light/Medium/Semibold render wrong
-  (docs/gaps.md:131-134).
-- **[partial]** Animations: 64 of ~190 effects; Animation Pane has no editable timeline
-  (docs/animation-parity.md:50-78).
-- **[partial]** Charts: data-grid editing and chart elements are partial; `chartex` types
-  (waterfall, funnel, treemap, sunburst, histogram, box & whisker) are not read (docs/gaps.md:146-151).
-- **[partial]** SmartArt is pre-drawn shapes only; text pane and layout switching are absent, and
-  editing a SmartArt from PowerPoint breaks it (docs/gaps.md:153-157).
-- **[partial]** 3-D: bevel/camera/lighting render approximately; no extrusion, no command or pane to
-  apply 3-D; text warps render all 40 presets but there is no gallery, command or adjust handles
-  (docs/gaps.md:167-175).
-- **[partial]** Ink from PPTX becomes freeform shapes on save — PowerPoint sees shapes, not ink
-  (docs/file-format-parity.md:80).
-- **[partial]** Proofing: spelling checks a small built-in list; no dictionaries, thesaurus or
-  AutoCorrect (docs/gaps.md:177-180).
-- **[partial]** Presenter view opens wherever the OS puts it (not the second display automatically);
-  show has no laser pointer, no highlighter, no "See All Slides", no zoom, no record slide show
-  (docs/slideshow-parity.md:25-56).
-- **[partial]** Tab inside a text box ends text entry (#78; docs/gaps.md:141-144).
-- **[none]** No localization: English-only UI, no string catalog (ROADMAP.md:85-106).
-- **[none]** No AI/cloud features (Designer, Copilot, Translate, live subtitles) and no add-ins or
-  VBA — by policy; MCP/CLI automation is the alternative (docs/gaps.md:243-253).
-- **[none]** No native macOS menu bar; menu tree exists in code but is not installed
-  (docs/gaps.md:197-198).
-- **[none]** No multiple windows: one window holds the open presentations (docs/ui-parity.md:26).
+- **Charts are partial:** data can be edited by command/dialog, but chart elements and some `chartex` behaviour are thinner than PowerPoint’s (`docs/gaps.md:166-185`; `crates/engine/src/cmd/insert.rs:108-114`).
+- **Animations are partial:** 64 non-path effects of roughly 190 in PowerPoint; preview plays the slide from the start, not from the selected effect (`docs/gaps.md:29, 201-206`; `crates/model/src/anim.rs:320-437`).
+- **SmartArt is shallow:** imported diagrams are redrawn with DeckCraft’s layouts; PowerPoint has ~200 layouts, picture layouts and 3-D styles (`docs/gaps.md:187-199`; `crates/engine/src/cmd/smartart.rs:26-80`).
+- **No recording:** the Record tab’s Record button is disabled (“needs audio capture”), and there is no record-slide-show (`crates/ui-egui/src/ribbon.rs:2077-2078`; `docs/gaps.md:272-277`).
+- **Equations are not OMML:** the Equation dialog inserts pretty-printed text; OMML is neither read nor written (`crates/ui-egui/src/dialogs.rs:1699-1706`; `docs/file-format-parity.md:78`).
+- **No AI/cloud features:** no Copilot/Designer/Speaker Coach/Translate; only offline Design Ideas arrangements (`docs/gaps.md:347-351`; `crates/engine/src/cmd/ideas.rs:1-20`).
+- **No add-ins or VBA** by policy; MCP/CLI is the automation alternative (`docs/gaps.md:345`).
 
-### Stability and platform
-- **[partial]** Recorded issues: Close via the raw `file.close` command discards without asking
-  (the UI prompts; docs/gaps.md:38-41), startup crashes on some Windows GPUs (#40/#59), image paste
-  fails on Windows/Linux (#53), no soak testing (docs/gaps.md:43-55).
-- **[partial]** CPU rasterization only (`vello_cpu`), software video decode, no pen pressure or
-  trackpad gestures (docs/gaps.md:210-220).
-
-### Conflicting or uncertain
-- docs/gaps.md:38-41 says `file.close` does not prompt, while docs/ui-parity.md:53 and
-  crates/ui-egui/src/lib.rs:341 show the UI prompting around the command — treat the command itself
-  as unsafe on a dirty document. Uncertain — see docs/gaps.md.
-- Command count: docs/architecture.md:23 says 226 commands; 233 `cmd!` registrations exist at HEAD.
-  Uncertain which is canonical — see crates/engine/src/cmd/mod.rs:124-147 (also `deckcraft-cli commands`).
-- Claimed in README/docs but not directly code-verified in this pass: rehearse timings and Set Up Show
-  options (README.md:76; docs/slideshow-parity.md:31,53) and the presenter-view window
-  (docs/slideshow-parity.md:34-45; crates/ui-egui/src/show.rs exists). Uncertain — see those files.
+### Automation and data-safety behaviours to know
+- **`file.close` closes a dirty document without prompting.** The UI’s Close (`app.closePresentation`, `Cmd+W`) prompts; the raw engine command does not (`crates/engine/src/cmd/file.rs:569-574`; `crates/ui-egui/src/lib.rs:388, 715-723`). Do not call `file.close` on unsaved work.
+- **`app.quit` over the control channel quits without asking.** Pass `{"save": true}` to save first; otherwise unsaved changes are lost (`crates/ui-egui/src/control.rs:364-372`).
+- **`file.save`/`file.saveAs` without a `path` ask the UI for one** and write nothing in headless use; always pass `path` (`crates/engine/src/cmd/file.rs:396-415`).
+- **Do not use `file.save`/`--save` for `.png`/`.jpg`.** `save_bytes` has writers for `.pptx`/`.potx`/`.ppsx`, `.pdf`, `.gif`, outline and native, but not for PNG/JPEG; a `.png`/`.jpg` path falls through to native `.deckcraft` zip bytes under the image name (`crates/engine/src/cmd/file.rs:261-268, 340-376`). Use `file.export`/`--export` (or the GUI’s Save As, which routes those types through `export_as`) for images. MCP `save_presentation` and control-channel `app.save` inherit the same trap.
+- **`run` stops at the first failing command and saves nothing** (`apps/deckcraft-cli/src/help.rs:92-93`).
+- **The control channel has no authentication.** It binds loopback only; do not expose or port-forward it (`docs/control-protocol.md:3-4`; `apps/deckcraft/src/control_server.rs:52`).
 
 ## How to operate
 
-### Launch (macOS)
-- GUI: `open -a DeckCraft` or `open -a DeckCraft file.pptx` (file arguments open; apps/deckcraft/src/main.rs:155,219-223).
-  Binary: `/Applications/DeckCraft.app/Contents/MacOS/DeckCraft`. Never launch it just to inspect a
-  file — use the CLI/MCP instead.
-- Desktop flags: `deckcraft [--control <port>] [--sample] [--show] [files…]`; `--version` prints and
-  exits (apps/deckcraft/src/main.rs:3-4,145-157). `--sample` opens the built-in "Northern Lights"
-  deck (crates/engine/src/sample.rs:17-22); `--show` starts the slide show from slide 0.
-- The app bundle contains **only the GUI binary**; `deckcraft-cli` is a separate signed download
-  (`deckcraft-cli-<ver>-macos-universal.zip`; README.md:193-198) or `cargo run --release -p deckcraft-cli -- …`.
-  Check `which deckcraft-cli` before scripting; fall back to `cargo run` from a checkout.
-- Environment: `DECKCRAFT_CONTROL_PORT` (same as `--control`), `DECKCRAFT_NO_PREFS`,
-  `DECKCRAFT_NO_RECOVERY`, `DECKCRAFT_NO_AUDIO` (apps/deckcraft/src/main.rs:60-127), `RUST_LOG`
-  directives for stderr and the log file (README.md:136-141).
-- Paths on macOS: settings `~/Library/Application Support/DeckCraft/` with `ui.json`, `prefs.json`,
-  `logs/deckcraft.log` (rotated to `deckcraft.1.log`/`.2.log`, 16 MiB cap) and `Recovery/`
-  (apps/deckcraft/src/main.rs:42-53; crates/engine/src/recovery.rs:17-26; README.md:125-134).
-
-### CLI (exact usage)
+### Check what is installed
+```sh
+/Applications/DeckCraft.app/Contents/MacOS/DeckCraft --version   # prints: deckcraft 0.8.0
+command -v deckcraft-cli                                          # headless CLI is a separate download
 ```
-deckcraft-cli info FILE
-deckcraft-cli render (FILE | --sample) [--slide N | --all] [--scale S] [--edit] OUT
-deckcraft-cli render-transition FILE --slide N --t T[,T...] [--width PX] OUT.png
-deckcraft-cli convert IN OUT
-deckcraft-cli run [--in FILE | --sample] [--cmd ID[=JSON]]... [--save OUT] [--export OUT] [--print]
-deckcraft-cli commands [FILTER]
-deckcraft-cli describe COMMAND
-deckcraft-cli app [--port PORT] COMMAND [JSON] | --method METHOD [JSON]
-deckcraft-cli mcp [--connect PORT] [--sample]
-deckcraft-cli links | --version
-```
-Verified in apps/deckcraft-cli/src/main.rs:36-45. Notes: `render --all` becomes `<out>/slide-NN.png`;
-`--cmd` takes `ID` or `ID={JSON}`; `convert` exports slide 0 for png/jpeg and Save-As otherwise;
-`deckcraft-cli app` defaults to port 7979 (crates/mcp/src/lib.rs:29) and talks to a running app
-started with `deckcraft --control 7979`.
+The `.app` bundle contains no `deckcraft-cli`. The CLI ships as the separate release asset `deckcraft-cli-<ver>-macos-universal.zip` (`packaging/macos/package.sh:5, 44, 156-167`; README.md:206). On the audit machine `deckcraft-cli` was **not** on `PATH` and not inside the bundle. Download/unzip the CLI, build it with `cargo build --release -p deckcraft-cli`, or automate through the control channel instead.
 
-### Driving the running app (control channel)
-`deckcraft --control 7990` then send one JSON object per line to `127.0.0.1:7990`:
+### Launch
+```sh
+open -a DeckCraft                          # normal GUI
+open -a DeckCraft --args --sample          # sample deck
+open -a DeckCraft /path/to/talk.pptx       # open a file
+/Applications/DeckCraft.app/Contents/MacOS/DeckCraft --control 7990 --sample
+```
+GUI flags: `--control PORT`, `--sample`, `--show`, `--help`, `--version`, and file paths (`apps/deckcraft/src/main.rs:129-161`; verified by running `--help`). The control port can also come from `DECKCRAFT_CONTROL_PORT`. The app opens `.deckcraft`, `.pptx`, `.potx`, `.ppsx`, `.txt`, `.md` (the last two as outlines) and applies `.thmx`/`.pptx` themes through Design ▸ Browse for Themes (`apps/deckcraft/src/main.rs:95-111`; `crates/engine/src/cmd/file.rs:127-163`; `crates/engine/src/cmd/design.rs:148-174`).
+
+### CLI
+`deckcraft-cli` is the most reliable automation surface; it needs no window.
+
+| Command | What it does |
+|---|---|
+| `deckcraft-cli info FILE` | JSON: slides, layouts, theme fonts, sections, slide size (`help.rs:9-19`) |
+| `deckcraft-cli render (FILE \| --sample) [--slide N \| --all] [--scale S] [--edit] OUT` | PNG per slide; `--all` writes `slide-01.png…`; default scale 2; `--slide` is 0-based (`help.rs:20-33`) |
+| `deckcraft-cli render-transition FILE --slide N --t T[,T...] [--width PX] OUT.png` | Frames of the transition into slide N (`help.rs:34-47`) |
+| `deckcraft-cli convert IN OUT` | Save in OUT’s extension: `.deckcraft`, `.pptx`, `.potx`, `.ppsx`, `.pdf`, `.txt`, `.md`, `.png`/`.jpg` (first slide only), `.gif` (`help.rs:48-57`; `main.rs:404-423`; `crates/engine/src/cmd/file.rs:340-348`) |
+| `deckcraft-cli run [--in FILE \| --sample] [--cmd ID[=JSON]]... [--save OUT] [--export OUT [--export-params JSON]] [--print]` | Run commands, then save/export (`help.rs:58-94`) |
+| `deckcraft-cli commands [FILTER]` | List command ids/labels/params (`help.rs:95-106`) |
+| `deckcraft-cli describe COMMAND` | Explain one command and its parameters (`help.rs:107-115`) |
+| `deckcraft-cli app [--port PORT] COMMAND [JSON]` / `--method METHOD [JSON]` | Send one request to a running `deckcraft --control` (`help.rs:116-126`; default port 7979) |
+| `deckcraft-cli mcp [--connect PORT] [--sample] [--automation-read-root DIR] [--automation-write-root DIR]` | MCP server on stdio (`help.rs:127-139`) |
+| `deckcraft-cli bench (FILE \| --sample) [--runs N] [--json]` | Time open/render/save/PDF (`help.rs:140-149`) |
+
+Examples:
+```sh
+deckcraft-cli commands format.
+deckcraft-cli describe shape.insert
+deckcraft-cli run --cmd 'slide.new={"layout":"titleOnly","title":"Q3 results"}' \
+  --cmd 'shape.insert={"preset":"roundRect","rect":[80,160,320,120],"text":"Revenue"}' \
+  --save q3.deckcraft
+deckcraft-cli render q3.deckcraft --all --scale 1 out/
+deckcraft-cli convert q3.deckcraft q3.pdf
+deckcraft-cli run --in q3.deckcraft --export q3-notes.pdf \
+  --export-params '{"layout":"notes","paper":"a4"}'
+```
+`--print` prints each command’s **answer**; it is not a printer flag (`help.rs:92`). `convert` gives no PDF-layout options; use `run --export` or `file.export` for notes/handouts.
+
+### Conventions that prevent most automation bugs
+- Coordinates are **points** on a 960×540 (16:9) slide unless the deck says otherwise; a rect is `[x, y, width, height]`, x right and y down (`help.rs:82-84`; `crates/model/src/defaults.rs:17`).
+- **Slide indices are 0-based**; image files written by `--all` are named from 1 (`slide-01.png`) (`help.rs:84-86`; `crates/engine/src/cmd/file.rs:483-514`).
+- **Shape ids are looked up on the current slide only**; `slide.go` changes the current slide (`help.rs:86-87`; `crates/engine/src/cmd/slide.rs:26`).
+- `slide.new` inserts **after the current slide** and selects the new slide; pass `at` for an explicit index (`crates/engine/src/cmd/slide.rs:103-154`).
+- Commands that add a shape select it; `format.*` acts on the selection, while many shape commands take `ids` directly (`help.rs:88-90`).
+- Text bodies use `\n` for a new paragraph and a leading tab per level for bullets (`crates/engine/src/cmd/slide.rs:124-133`; `apps/deckcraft-cli/src/help.rs:70-78`).
+
+### Documents, open/save/export
+- One process can hold several presentations; `file.new`/`file.open` add documents, `window.next` cycles the active one, and `view.newWindow` opens a second, non-editing window on the same deck (`crates/engine/src/cmd/file.rs:12-71`; `crates/ui-egui/src/doc_window.rs:1-8`).
+- **Open:** `file.open {path}`. Native `.deckcraft`, `.pptx`/`.potx`/`.ppsx`, and `.txt`/`.md` outlines. Open is lenient for PPTX (unknown parts skipped/kept), and background-loaded in the GUI (`crates/engine/src/cmd/file.rs:127-163`; `docs/architecture.md:64-69`; `crates/ui-egui/src/opening.rs`).
+- **Save:** `file.save {path, format?}` or `file.saveAs {path}`. The format follows the extension unless `format` is given: `.deckcraft`, `.pptx`, `.potx`, `.ppsx`, `.pdf`, `.gif`, `.txt`/`.md` (`crates/engine/src/cmd/file.rs:261-268, 340-376, 396-415`). **For `.png`/`.jpg`, use `file.export` instead:** `save_bytes` has no PNG/JPEG writer, so a `.png`/`.jpg` path through `file.save` writes native zip bytes under the image name; the GUI’s Save As avoids this by routing images through `export_as` (`crates/ui-egui/src/backstage.rs:926-958`). Writes go to a unique `.saving` sibling and are renamed over the target, so a failed save does not truncate the old file (`crates/engine/src/io.rs:20-50`).
+- **Export:** `file.export {path, format?, ...}`. PNG/JPEG export the current slide, one `slide`, or `all`; PDF accepts `layout: slides|notes|handouts`, `perPage`, `paper`, `orientation`, `dpi`, `slides` (range string or indices), `includeHidden`, `textLayer`, `frame`; GIF accepts `width`, `secondsPerSlide`, `loop`, `slides`, `includeHidden` (`crates/engine/src/cmd/file.rs:36, 481-545`).
+- **Native format as source of truth:** keep the `.deckcraft` master and treat `.pptx` as an exchange copy. Native save is lossless for DeckCraft’s model; PPTX has the known losses above (`crates/format/src/lib.rs:1-3`; `docs/gaps.md:94-152`).
+
+### Drive a running app
+Start `deckcraft --control 7990`, then either:
+```sh
+deckcraft-cli app --port 7990 --method ui.screenshot '{"path":"/tmp/shot.png"}'
+deckcraft-cli app --port 7990 shape.insert '{"preset":"star5","rect":[100,100,200,200]}'
+```
+or speak JSON lines directly to `127.0.0.1:7990`:
 ```json
-{"id":1,"method":"engine.execute","params":{"command":"slide.new","params":{"layout":"titleOnly","title":"Hello"}}}
+{"id":1,"method":"engine.execute","params":{"command":"shape.insert","params":{"preset":"star5","rect":[100,100,200,200]}}}
 {"id":2,"method":"ui.screenshot","params":{"path":"/tmp/shot.png"}}
 ```
-Methods include `engine.execute`/`ui.menu.invoke`/`command`, `engine.commands`, `document.inspect`,
-`ui.inspect`, `ui.tool.select`, `ui.pointer`, `ui.key`/`ui.text`/`ui.ime`,
-`ui.move`/`ui.click`/`ui.drag`, `ui.set`, `ui.dialog.open/close`, `ui.screenshot`, `ui.render`,
-`ui.resize`/`ui.focus`, `show.start`/`show.end`, `app.open/save/export/quit`
-(docs/control-protocol.md:11-31; implemented in crates/ui-egui/src/control.rs:109-320).
-Coordinates are slide points (1/72 inch; 16:9 = 960×540).
+Use `ui.inspect` first to learn window/canvas/slide rects, the active tool, open dialogs and documents; `ui.pointer` takes **slide points**, `ui.click`/`ui.drag` take **screen points** (`docs/control-protocol.md:30-52`). The MCP equivalent is `deckcraft-cli mcp --connect 7990` (`docs/mcp.md:1-26`).
 
-### MCP
-`deckcraft-cli mcp` serves tools over stdio; `--connect PORT` attaches to the running app so an
-agent and a person share the same deck (docs/mcp.md:1-14). Tools: `list_commands`, `run_command`,
-`batch`, `new_presentation`, `open_presentation`, `save_presentation`, `export`, `inspect_document`,
-`inspect_slide`, `render_slide`, `add_slide`, `go_to_slide`, `add_shape`, `add_text_box`, `set_text`,
-`insert_picture`, `insert_table`, `insert_chart`, `select`, `pointer`, `select_tool`, `key`,
-`type_text`, plus app-only `screenshot` and `call_app` (crates/mcp/src/tools.rs:65-279).
+For a headless MCP client:
+```json
+{"mcpServers":{"deckcraft":{"command":"deckcraft-cli",
+  "args":["mcp","--automation-read-root","/work/deck","--automation-write-root","/work/deck/out"]}}}
+```
+Paths outside the roots are refused with ordinary tool errors; `--connect` and roots cannot be combined (`docs/mcp.md:28-78`).
 
-### Document model and workflow
-One window; several presentations can be open at once (switch with `window.next`, Cmd+`); there is
-no multi-window arrangement (crates/engine/src/cmd/file.rs:44; docs/ui-parity.md:26). Paths:
-File ▸ New/Open/Save/Save As/Export/Print/Close via the Backstage (Alt+F), ribbon tabs Home, Insert,
-Draw, Design, Transitions, Animations, Slide Show, Record, Review, View (docs/ui-parity.md:19-23).
-Open: recent list, Browse, Recover Unsaved Presentations (`file.recovery.open`). Save As types offered:
-PowerPoint, DeckCraft, PDF, Outline, PNG, JPEG (docs/ui-parity.md:49). The canonical workflow for an
-agent is: `deckcraft-cli run --in x.pptx --cmd … --save out.pptx` or MCP `run_command` + `render_slide`
-to look at results.
-
-Caution: `file.save`/`file.export` decide the format from the output **extension**
-(`format_for_path`, crates/engine/src/cmd/file.rs:185-200); any unknown extension silently writes
-native `.deckcraft` bytes under that name. Always use the real extension.
+### Environment and logs
+- Settings/logs: `~/Library/Application Support/DeckCraft/` (`ui.json`, `prefs.json`, `logs/deckcraft.log`); recovery: `~/Library/Application Support/DeckCraft/Recovery/` (`apps/deckcraft/src/main.rs:56-68`; `crates/engine/src/recovery.rs:25-35`).
+- `DECKCRAFT_CONTROL_PORT` sets the control port; `DECKCRAFT_NO_AUDIO=1` plays silently; `DECKCRAFT_NO_PREFS=1` skips loading/saving preferences; `DECKCRAFT_NO_RECOVERY=1` skips AutoRecover; `RUST_LOG` sets log levels (`apps/deckcraft/src/main.rs:70-90, 119-122, 174, 241`; README.md:128-144).
 
 ## Working with an AI agent
 
-### Legitimate agent work
-- **Build and edit decks headlessly** with `deckcraft-cli run` or MCP: `slide.new`, `shape.insert`,
-  `text.edit`/`insert`, `format.*`, `insert.picture/table/chart`, `transition.set`, `animation.add`,
-  then `--save`/`export`. Verify structure with `document.inspect`/`slide.inspect`/`shape.inspect`
-  (crates/engine/src/cmd/inspect.rs:12-15) and looks with `render_slide`/`ui.render` or
-  `deckcraft-cli render`.
-- **Prepare importable assets**: images as PNG/JPEG/GIF/WebP/BMP/TIFF (crates/engine/src/cmd/insert.rs:237-250;
-  `image` 0.25 with those features, Cargo.toml:59); audio/video in the decodable formats above;
-  outlines as `.txt`/`.md` — one slide per unindented line, tab-indented lines become body bullets
-  (crates/format/src/lib.rs:150-188).
-- **Interpret or repair native `.deckcraft` files**: they are plain zip + JSON (format documented in
-  crates/format/src/lib.rs:1-20); `load()` runs `repair()` for missing layouts/ids/sizes, and unknown
-  JSON fields are ignored by readers — but for real fixes prefer commands over hand-editing JSON, and
-  never rewrite the zip with entries missing (`presentation.json` is required).
-- **Verify exports**: read the produced PNG/JPEG; open the PDF's text (text layer is real, with
-  links and bookmarks); re-open a saved `.pptx`/`.deckcraft` with `deckcraft-cli info` to confirm
-  slides survive. Check the CLI's printed `path (W×H)` lines — output is quiet on success otherwise.
-- **Drive the live app's UI when needed** through the documented control methods (`ui.*`), including
-  `ui.screenshot` for evidence. That is the supported path — not OS-level automation.
-- **Troubleshoot via logs**: the app logs to stderr and `~/Library/Application Support/DeckCraft/logs/deckcraft.log`;
-  the crash guard and import skips are logged there (README.md:125-141; crates/engine/src/guard.rs:1-9).
+### Choose the surface
+1. **Headless CLI** (`deckcraft-cli run`, `render`, `convert`, `info`, `mcp`) — best for generating decks, batch exports and verification. It needs no window and no GUI state.
+2. **MCP stdio** (`deckcraft-cli mcp`) — best when the agent has an MCP client; use `run_command`/`batch` for anything the 25 tools do not wrap, and `inspect_document`/`inspect_slide` before editing. `batch` stops at the first error unless `keepGoing` is true, and tools reject unknown argument names rather than silently using defaults (`crates/mcp/src/tools.rs:334-337, 359-374`).
+3. **Control channel** (`deckcraft --control`) — only when a human and agent must share a live window, or when UI-only state (dialogs, selection, screenshots) matters. Always `ui.inspect`/`ui.screenshot` before pointer work; never click blind.
 
-### Do not attempt
-- Do not assume any format not listed reads: `.ppt`, `.odp`, `.pptm`/macro formats, `.thmx` fail or
-  are unrecognized (docs/file-format-parity.md:22-25).
-- Do not "save as .potx/.ppsx" expecting template/show semantics — the writer emits a plain
-  presentation (docs/gaps.md:87-93).
-- Do not promise fidelity for arbitrary PowerPoint-authored decks (never corpus-tested), SVG icons,
-  embedded fonts, chartex charts, comment threads or macro content (docs/gaps.md:61-105).
-- Do not print expecting a printer dialog: printing exists only as PDF export (docs/gaps.md:113-116).
-  Do not export video/GIF, and do not expect a native macOS menu bar.
-- Do not issue `file.close` (or quit) on a dirty document from automation — save first; the command
-  itself discards (crates/engine/src/cmd/file.rs:342-347; docs/gaps.md:38-41).
-- Do not hand-edit `.pptx` zip internals; use the model/commands (unknown PPTX parts do round-trip
-  through `Opaque`/`raw_ext`, but only when edited through the app; docs/architecture.md:63-65).
-- Do not drive the GUI blindly by coordinates as a substitute for commands: commands are stable,
-  pixel positions are not (docs/architecture.md:40-47). And never launch the GUI in a CI/headless
-  context — use `deckcraft-cli`/MCP.
+### Prepare inputs
+- **Pictures:** PNG, JPEG, WebP, GIF, BMP, TIFF (not SVG, not HEIC). Pre-render logos and icons to PNG with transparency.
+- **Audio/video:** MP3, AAC/M4A, ALAC, WAV, AIFF, CAF, FLAC, Ogg, Opus; H.264/HEVC/VP9/AV1 in MP4/MOV/WebM/MKV (`crates/media/src/lib.rs`). Transcode WMA/WMV first.
+- **Outlines:** a `.md` file with `#` headings (one slide per heading, list items as bullets) or a tab-indented `.txt` outline imports directly (`crates/format/src/lib.rs:412-523`).
+- **Themes:** `.thmx` or a `.pptx`/`.potx` whose first master holds the theme (`crates/pptx/src/lib.rs:66-69`).
+
+### Inspect, repair and convert
+- `.deckcraft` is a zip: inspect `presentation.json` and `media/<id>` with `unzip -l`/`unzip -p`. Repair missing media by restoring the member; do not rewrite the JSON unless the schema is understood (`crates/format/src/lib.rs:1-24`). If media is damaged, DeckCraft opens a repaired copy and refuses to overwrite the original path (`crates/engine/src/cmd/file.rs:199-256`).
+- Do **not** hand-edit a `.pptx` zip to “fix” it: use DeckCraft commands and re-export. Unknown PPTX parts are preserved by the writer, but hand-edited XML can break content types or relationships (`docs/architecture.md:64-69`).
+- Convert between `.deckcraft`, `.pptx`, `.pdf`, `.txt`/`.md` and images with `convert`, but remember `convert` writes only the first slide for PNG/JPEG and uses default PDF options (`apps/deckcraft-cli/src/main.rs:404-423`).
+
+### Verify exports
+- Read the command result: exports return `{path, bytes}` or `{files}`; check the file exists and its size is plausible (`crates/engine/src/cmd/file.rs:481-545`). A zero-byte or missing file is a failure even if the process exited 0.
+- Re-open the result: `deckcraft-cli info out.pptx` and compare slide count/titles/layouts with the source; `deckcraft-cli render out.pptx --all` and look at the PNGs.
+- For PDF, inspect page count and extracted text (e.g. `pdfinfo`, `pdftotext`, Preview); the text layer should be selectable but the artwork is raster (`crates/pdf/README.md:3-6`).
+- For `.pptx`, the strongest test is opening it in PowerPoint/Keynote and checking for a repair prompt, animations, media and theme fonts. The project has not tested a real-deck corpus (`docs/gaps.md:67-92`).
+- For GIF, verify the `GIF89a` header, dimensions, frame count and delay; transitions/builds are intentionally absent (`crates/engine/src/gif_export.rs:1-8`).
+
+### Do not
+- Do not insert SVG, HEIC, EMF/WMF (via `insert.picture`) and expect them to draw.
+- Do not promise `.ppt`, `.odp`, `.pptm`, macros, password protection or MP4 export.
+- Do not call `file.close` or `app.quit` on unsaved work; use `app.quit {"save": true}` or save explicitly.
+- Do not use `file.save`/`--save` for `.png`/`.jpg`; use `file.export`/`--export` (otherwise native zip bytes get an image extension).
+- Do not assume PDF is vector or that a `.pptx` round-trip is lossless.
+- Do not rely on font metrics matching PowerPoint exactly; substitute faces change line breaks. Verify visually.
+- Do not expose the control channel beyond loopback; it has no authentication.
 
 ## Verification protocol
 
-Alpha-software discipline; a silent bad export is the failure mode to design against.
+Alpha software with active auto-updates: verify every deliverable, keep a native master, and never trust a silent export.
 
-1. **Throwaway round trip** before trusting any pipeline: create → edit → save → export → reopen.
-   ```sh
-   deckcraft-cli run --cmd 'file.new={}' --cmd 'slide.new={"layout":"titleAndContent","title":"T"}' --save /tmp/rt.deckcraft
-   deckcraft-cli info /tmp/rt.deckcraft
-   deckcraft-cli render /tmp/rt.deckcraft --all --scale 1 /tmp/rt-out/
-   deckcraft-cli convert /tmp/rt.deckcraft /tmp/rt.pptx && deckcraft-cli info /tmp/rt.pptx
-   ```
-   Inspect one PNG visually; confirm `info` shows the expected slide count, theme and fonts (the
-   `file.open` result also reports `missingFonts`; crates/engine/src/cmd/file.rs:105).
-2. **Never trust a silent export**: check exit status, that the file exists and is non-empty, then
-   re-read it (`info`, reopen in DeckCraft or PowerPoint). Remember `file.save` falls back to the
-   native format for unknown extensions (crates/engine/src/cmd/file.rs:185-200).
-3. **Version and back up per session**: copy `.deckcraft`/`.pptx` sources before batch edits. Saving
-   deletes the AutoRecover entry for that document (`mark_saved`, crates/engine/src/cmd/file.rs:202-214),
-   so recovery protects only unsaved work — it is not a backup. PPTX round trips lose comment
-   threads, media options and rewind (docs/gaps.md:71-76): keep the original when fidelity matters.
-4. **Update the app only between projects**: the installed bundle was 0.6.1 vs HEAD 0.7.0 at the time
-   of writing, and the launcher auto-updates — re-check `deckcraft --version` and re-run the
-   round-trip before relying on a newly landed behaviour.
-5. **When something breaks**, capture `~/Library/Application Support/DeckCraft/logs/deckcraft.log`
-   (plus `.1`/`.2`) and `RUST_LOG=debug` output before filing; the panic report is written there
-   (README.md:125-141).
+1. **Pin the version.** Record `deckcraft --version` and the bundle build commit before work. Update only between projects, not mid-deck; file formats and command sets move between releases (`apps/deckcraft/src/main.rs:179-181`; `/Applications/DeckCraft.app/Contents/Info.plist`).
+2. **Work in a throwaway directory.** Copy sources in; never run destructive tests on the only copy of a deck. Keep a `.deckcraft` master plus dated backups.
+3. **Round-trip a small test first.** New deck → add one slide, shape, table, chart, picture, transition and note → save `.deckcraft` → export `.pptx` → reopen the `.pptx` → inspect counts and render PNGs. Fix workflow problems before touching the real deck.
+4. **Save before every export.** A failed export must not be the only copy of your changes. `file.save` is atomic via a `.saving` sibling, but exports are ordinary writes (`crates/engine/src/io.rs:20-50`).
+5. **Check every export explicitly.** Assert file existence and non-zero size; for images check dimensions; for PDF check page count and selectable text; for PPTX reopen and render; for GIF check header, dimensions and frame count.
+6. **Look at the pixels.** `deckcraft-cli render … --all` (or MCP `render_slide`) and inspect the PNGs. Text overflow, missing fonts, blank SVG/EMF pictures and chart scaling are visual failures that a successful exit code will not catch.
+7. **Open in the target app.** If PowerPoint is available, open the exported `.pptx` and check for repair prompts and lost animations/media. If not, state that fidelity is unverified rather than claiming parity.
+8. **Keep the native file.** PowerPoint export is an exchange copy; the `.deckcraft` master preserves DeckCraft-only constructs and is the safest thing to reopen after a failure.
+9. **Record what changed.** Note version, command lines/JSON params, export options and any manual GUI steps, so a failed export can be reproduced.
 
 ## Sources & evidence
 
-- Repo: https://github.com/storytold/deckcraft — inspected at HEAD
-  `d78e657e4cb1e490ceb5445785c052d9cf5ad963` ("Release 0.7.0"), 2026-10-14. Working tree clean.
-- Installed app: `/Applications/DeckCraft.app`, CFBundleIdentifier `ai.storyteller.deckcraft`,
-  version 0.6.1, exports UTType `ai.storyteller.deckcraft.presentation` (Contents/Info.plist).
-- Key files read: README.md; Cargo.toml; AGENTS.md; ROADMAP.md; docs/{architecture,gaps,file-format-parity,
-  animation-parity,slideshow-parity,ui-parity,control-protocol,mcp,roadmap}.md;
-  apps/deckcraft/src/main.rs; apps/deckcraft-cli/src/main.rs; apps/deckcraft-web/src/main.rs;
-  crates/engine/src/cmd/{mod,file,insert,inspect,slide,shape,merge,arrange,review,media,animation,transition,table,format,design}.rs;
-  crates/engine/src/{guard,recovery,keys,sample}.rs; crates/format/src/lib.rs; crates/pptx/src/lib.rs;
-  crates/pdf/src/lib.rs; crates/mcp/src/{lib,tools}.rs; crates/ui-egui/src/{lib,control,ribbon,dialogs}.rs;
-  crates/model/src/{theme,defaults,chart}.rs; crates/geom/src/preset.rs; crates/anim/src/transition_fx.rs.
-- Deeper detail (CLI/control/MCP tables, shortcuts, paths) in `references/commands-and-formats.md`
-  next to this file.
+- **Repo:** https://github.com/storytold/deckcraft — tag `v0.8.0`, commit `22db9261f9d1a214c296fd390173130c45d76d66` (`git rev-parse HEAD`), inspected 2026-10-18.
+- **Installed bundle:** `/Applications/DeckCraft.app`, `CFBundleIdentifier ai.storyteller.deckcraft`, version `0.8.0`, `DeckCraftBuildCommit` equal to the commit above. `--version` prints `deckcraft 0.8.0`.
+- **Key files read:** `README.md`; `ROADMAP.md`; `Cargo.toml`; `docs/architecture.md`; `docs/gaps.md`; `docs/file-format-parity.md`; `docs/animation-parity.md`; `docs/ui-parity.md`; `docs/mcp.md`; `docs/control-protocol.md`; `apps/deckcraft/src/main.rs`; `apps/deckcraft-cli/src/main.rs`; `apps/deckcraft-cli/src/help.rs`; `crates/engine/src/lib.rs`; `crates/engine/src/cmd/{mod,file,slide,insert,shape,text,format,design,table,smartart,animation,transition,review}.rs`; `crates/engine/src/{io,recovery,gif_export,icons,templates}.rs`; `crates/format/src/lib.rs`; `crates/pptx/src/lib.rs` and `crates/pptx/tests/roundtrip.rs`; `crates/pdf/src/lib.rs` and `crates/pdf/README.md`; `crates/model/src/{lib,theme,chart,anim}.rs`; `crates/geom/src/preset.rs`; `crates/render/src/images.rs`; `crates/media/src/lib.rs`; `crates/mcp/src/{tools,server}.rs`; `crates/ui-egui/src/{lib,show,menus,ribbon,backstage,dialogs,control,doc_window}.rs`; `apps/deckcraft-web/src/{main,web}.rs`; `packaging/macos/package.sh`.
+- **Shared library:** `craft-pdf` is pinned to `storytold/craft-libs` rev `c3487320b2d1de657b860b3c8abb44e1f2b32bd8` (`Cargo.toml:60`); its writer uses `write` only (`crates/pdf/README.md:3-12`).
+- **Docs that are stale:** `docs/file-format-parity.md` says `.potx`/`.ppsx` are written with the `.pptx` content type and `.thmx` is unreadable; v0.8.0 code writes the correct content types and imports `.thmx` (`crates/pptx/src/lib.rs:76-84`; `crates/engine/src/cmd/design.rs:23, 148-174`). Much of `docs/gaps.md` was last reviewed 2026-10-14, before this release; code wins where they disagree.
+- **Not independently verified:** PowerPoint’s acceptance of exported `.pptx` without repair, render fidelity against PowerPoint, and behaviour on real-world decks of unknown provenance. Treat those as claims until you test them.

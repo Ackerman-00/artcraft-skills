@@ -1,126 +1,312 @@
 ---
 name: gridcraft
-description: "GridCraft is an open-source, clean-room Microsoft Excel-style spreadsheet app (XLSX-native, pure Rust) for macOS, Windows, Linux, BSD and the web, built to be driven by agents via a CLI, an MCP server and a localhost JSON control channel. Trigger this skill whenever the user mentions GridCraft by name; asks about its capabilities, file formats or keyboard shortcuts; wants to create, edit, convert, evaluate, format, chart, pivot, print or verify spreadsheet data in it; wants to automate or script it (MCP, CLI, control channel); or needs to troubleshoot an export it produced — even if they don't name the app but describe the job ('make an Excel file', 'edit this workbook', 'calculate this in a sheet', 'convert this CSV to XLSX')."
+description: >-
+  GridCraft is an open-source, clean-room Rust reimplementation of Microsoft Excel: a fast spreadsheet
+  app for macOS (also Windows, Linux, BSD and the web) that reads and writes real Excel .xlsx files,
+  and that can be driven headlessly by agents through a CLI, an MCP server and a live JSON control
+  channel. Use this skill whenever the user mentions GridCraft by name; asks what it can do or which
+  formats, keyboard shortcuts, commands or worksheet functions it has; wants to create, edit, convert,
+  calculate, print or export spreadsheets with it; wants to automate or script it (MCP, CLI, control
+  channel, recorded scripts); needs assets or data prepared for it (make/convert .xlsx, CSV, TSV, JSON,
+  or convert .xls/.xlsb/.ods into .xlsx); wants its output verified, repaired or round-tripped
+  (gridcraft-cli check); or reports a symptom (crash, wrong formula result, formatting lost on save,
+  Excel saying "we found a problem with some content"). Trigger it even when the app is not named but
+  the job is Excel-style spreadsheet work — "make me an Excel file", "add a formula column", "sort and
+  filter this sheet", "pivot this data", "export this workbook to PDF", "read the values out of this
+  spreadsheet". Do not assume Excel feature parity from Excel knowledge; check this skill first.
 ---
 
 # GridCraft
 
 ## Overview
 
-GridCraft is a clean-room, open-source reimplementation of Microsoft Excel: an XLSX-native spreadsheet with formulas, formatting, tables, charts, PivotTables, printing and a JSON automation surface. It is written in pure Rust by the ArtCraft team and runs natively on macOS, Windows, Linux and BSD plus in the browser via WebAssembly (README.md; Cargo.toml workspace). It is **alpha** software: the six core workflows pass end to end, but breadth is ~75% and "ready for real work" is estimated at ~50% (ROADMAP.md "Headline numbers"). Source: https://github.com/storytold/gridcraft. HEAD inspected is `0.7.0` while the app installed at `/Applications/GridCraft.app` is `0.6.1` — **verify against your installed version**; this skill describes repo HEAD (`d9d09f0`).
-
-GridCraft's distinguishing asset for agents: **everything user-visible is a command** in one registry, reachable over MCP, the CLI, or a localhost control channel — no GUI scripting is needed for most work (AGENTS.md "Everything is a command"; crates/engine/src/cmd/mod.rs:123 `command_specs()`).
+GridCraft is an open-source, clean-room reimplementation of Microsoft Excel's workflow, written in pure
+Rust by the ArtCraft team; the source lives at `github.com/storytold/gridcraft` (README.md). XLSX is the
+native format, and an engine-first architecture makes every ribbon button, menu item, dialog, keystroke
+and mouse gesture a *command* that agents can run over a JSON control channel, an MCP server, or the
+headless CLI (`README.md` §"For agents"; `AGENTS.md`). Maturity is **alpha**: the core workflow (open
+XLSX → edit/format → sort/filter → chart/pivot → print to PDF → save XLSX) works end to end, but the
+project's own assessment is ~50% "ready for real work" (ROADMAP.md headline numbers). It runs on macOS
+11+, Windows, Linux, BSD and the browser via WebAssembly; this skill was written against release
+**v0.8.0**, the exact commit (`823c5658`) shipped in the installed app bundle.
 
 ## Capabilities (verified)
 
-### Engine and editing
-- XLSX-native workbook model; ~340 registered engine command ids (`cmd!` macros across `crates/engine/src/cmd/*.rs`; registry at `crates/engine/src/cmd/mod.rs:123`), covering Excel's ribbon namespaces (`home.bold`, `insert.chart`, `data.sort`) plus primitives (`cell.set`, `range.setValues`). 274 / 290 of Excel's ribbon catalog is implemented, per the generated `docs/parity-checklist.md` (source: `crates/engine/src/catalog.rs`).
-- Formula engine: 513 of Excel's 523 worksheet function names present, 504 working (`docs/function-parity.md`); dynamic arrays/spilling, LET, LAMBDA, MAP/REDUCE/SCAN/BYROW/BYCOL/MAKEARRAY, structured table references (`crates/calc/src/eval.rs` `SPECIAL_FUNCTIONS`; README "Capable"). Cached-value "calc oracle" comparison against Excel-saved files lives in `gridcraft-cli check` (`apps/gridcraft-cli/src/check.rs`).
-- Full Excel number-format language (`crates/numfmt`); 47 cell styles, all conditional-format kinds; cell styles, borders, alignment (`crates/engine/src/cmd/format.rs`).
-- Editing: undo/redo, clipboard with Paste Special, fill (series/fill handle), multi-level sort, AutoFilter, Flash Fill, Text to Columns, Remove Duplicates, data validation, outlining/subtotals, find/replace, Go To, freeze panes, merged cells (`crates/engine/src/cmd/{edit,data,format}.rs`).
-- Tables with header/total rows, banded styles, structured references, table AutoFilter + slicer criteria (`crates/engine/src/cmd/insert.rs`, `crates/engine/src/cmd/slicer.rs`).
-- PivotTables: field list, layouts, report filters, date grouping, show-values-as, calculated fields, PivotCharts; XLSX round trip (`crates/engine/src/cmd/pivot.rs`; README "PivotTables"). Slicers can be inserted/toggled in-session but are **not written to XLSX** (`crates/engine/src/cmd/slicer.rs`; `crates/xlsx/src/passthrough.rs:135` drops slicer parts — see limitations).
-- Charts: 25 kinds modelled including column/bar/line/pie/area/scatter/bubble/radar/histogram/waterfall/funnel/treemap/sunburst/box/stock/combo (`crates/model/src/features.rs:370` `ChartKind`); sparklines; trendlines; chart sheets are kept byte-for-byte on save but cannot be edited or created (`crates/xlsx/src/passthrough.rs`, README).
-- Objects: floating and in-cell pictures (PNG/JPEG; ≤16 MiB, ≤8192 px/side — `crates/engine/src/cmd/insert.rs`, `docs/cell-pictures.md`), shapes, text boxes, Draw ink, symbols, cell checkboxes, hyperlinks (opening is restricted to http/https/mailto — `crates/engine/src/links.rs`).
-- Review: notes, threaded comments with replies/resolve, spell check, thesaurus, workbook statistics, accessibility check, sheet/workbook protection with Excel-compatible password hashes, Allow Edit Ranges (`crates/engine/src/cmd/{review,extra}.rs`).
-- Analysis: Goal Seek, Scenario Manager, Data Table, Advanced Filter, Consolidate, Solver (Simplex LP with integer/binary, a local nonlinear method and Evolutionary; sensitivity/population reports missing), Analysis ToolPak (13 of 19 tools), Forecast Sheet (`crates/engine/src/cmd/{whatif,solver,analysis,forecast}.rs`; `docs/gaps.md` §13).
-- Print & PDF: page setup, print areas/titles, headers/footers, Page Layout and Page Break Preview, native printing via the system print dialog (craft-print), PDF export through GridCraft's own PDF 1.7 writer (`crates/engine/src/cmd/print.rs:22` `file.exportPdf`; `crates/pdf/src/lib.rs`; README "Page Break Preview"). Caution: only the 14 standard PDF fonts, no embedding — **non-Latin text does not export** (`docs/file-format-parity.md`).
-- Multiple workbooks per session plus extra windows (`file.open` appends documents, `window.activate {index}` switches — `crates/engine/src/cmd/file.rs`; `view.newWindow` opens a linked second window — `crates/engine/src/cmd/extra.rs:144`).
-- UI chrome translated in 11 selectable languages (en, es, zh, ja, ko, ru, pt-BR, de, cs, fr, sr — `crates/ui-egui/src/i18n.rs:24`); coverage is partial (~12% of ~2,200 strings, ribbon/menus mostly) and formulas/number formats are en-US only (`docs/localization-parity.md`).
+### Core workbook and editing
+- Multiple workbooks open in one OS window ("documents"), plus sheet tabs, names, freeze panes,
+  outlining; three built-in samples `sales`, `budget`, `grades` — `crates/engine/src/sample.rs`,
+  `crates/engine/src/cmd/file.rs` (`file.new`), `docs/ui-parity.md` (no multiple windows per workbook).
+- Full command surface: 274 of the 290 Excel ribbon/menu ids in the catalog are implemented (94.5%) —
+  `crates/engine/src/catalog.rs`, generated `docs/parity-checklist.md`. The CLI prints the live list:
+  `gridcraft-cli commands`. Examples: `cell.set`, `home.bold`, `insert.chart`, `data.sortAscending`.
+- Formatting: fonts, borders, fills, alignment, merges, Excel's number-format language
+  (`crates/numfmt`), styles/themes, conditional formatting (`crates/engine/src/cf.rs`), data validation,
+  and pass-through of unmodelled workbook parts — `crates/xlsx/src/passthrough.rs`.
+- Tables, comments/notes and threaded comments, hyperlinks, pictures (floating and in-cell rich-value
+  pictures: `docs/cell-pictures.md`), shapes/text boxes, checkboxes (`insert.checkbox`,
+  `cell.toggleCheckbox`), freehand ink on the Draw tab (`draw.pen`/`draw.lasso`/`draw.eraser`,
+  `crates/model/src/features.rs` `Shape` ink points), sparklines (line/column/win-loss:
+  `crates/model/src/features.rs` `SparklineKind`, `crates/chart/src/sparkline.rs`).
+- AutoSave toggle in the title bar (saves after each change when the workbook has a file) —
+  `crates/ui-egui/src/ribbon.rs` `title_bar`.
 
-### File formats (what the code actually reads/writes)
-Handled by `crates/engine/src/io.rs` (`FileKind`), `crates/xlsx/src` and `crates/engine/src/cmd/file.rs`; full matrix in `docs/file-format-parity.md`.
+### Formulas and calculation
+- 513 of Excel's 523 worksheet functions by name (504 working, 96.4%), including dynamic arrays and
+  spilling, LET, LAMBDA, MAP/REDUCE/SCAN/BYROW/BYCOL/MAKEARRAY, structured table references,
+  iterative calculation for circular references — `docs/function-parity.md`, `crates/functions/src/`,
+  `crates/calc/src/`.
+- Evaluate without editing: `gridcraft-cli eval '=SUM(A1:A9)' --in book.xlsx` or the `formulas.evaluate`
+  command (`apps/gridcraft-cli/src/main.rs::eval`).
+- The CLI can act as a calculation oracle/tester: `gridcraft-cli check <files-or-dir>` recalculates
+  every formula, compares against the file's cached values, and round-trips the workbook through
+  GridCraft's own XLSX writer comparing ~15 categories (values, formulas, tables, charts, pivots…) —
+  `docs/cli.md` §`check`, `apps/gridcraft-cli/src/check.rs`. Exit 1 on any difference; `--json` emits
+  schema `gridcraft-check/1`.
 
-| Format | Read | Write | Notes |
-|---|---|---|---|
-| `.xlsx`, `.xlsm` | yes | yes | XLSX is native. `.xlsm`/`.xltm` keep the VBA project byte-for-byte (never run); `.xlsx` never carries macros. Saved transitional even when opened from Strict Open XML |
-| `.xltx`, `.xltm` | yes | partial | Saved with the template content type by extension; no "new from template" behaviour |
-| `.xls`, `.xlt` | partial import | **no** | BIFF8 values, formulas, number formats, merges, sizes, names, print areas; no styles, charts, pictures, comments, CF, validation; BIFF5/encrypted refused; opens as unsaved import (Save As needed) |
-| `.xlsb` | values-only import | **no** | Sheets, values, dates, merges, cached formula results; no formulas/formatting (`docs/xlsb-import.md`) |
-| `.ods` | values-only import | **no** | Sheets, values, dates, merges, repeated cells, cached results; encrypted ODS refused (`docs/ods-import.md`) |
-| `.csv` | yes | yes | UTF-8/UTF-16 BOM, Windows-1252 fallback, delimiter detection; export writes displayed values (General-format numbers written in full precision) with CRLF, no BOM; a file opened as `;`-separated stays `;` (`crates/xlsx/src/csv.rs`, `crates/engine/src/io.rs:234`) |
-| `.tsv`, `.tab`, `.txt` | yes | yes | tab-delimited |
-| `.json` | yes | yes | GridCraft's own workbook JSON (debug), not Power Query JSON (`FileKind::Json`, `crates/engine/src/io.rs`) |
-| `.html`, `.htm` | yes | yes | one sheet as a table; >100,001 rows export fails (`crates/engine/src/io.rs` `to_html`) |
-| `.pdf` | — | yes | export of the active sheet via Save As `.pdf` / `file.exportPdf` |
-| Password-encrypted `.xlsx`/`.xlsm` (Agile/Standard) | yes | no | opens with `password`; saving writes it unencrypted as a new file (never overwrites the original); RC4 refused (`crates/xlsx/src/crypto.rs`) |
+### Files it reads and writes
+- **XLSX is native** (read/write): cells, formulas (shared/array/dynamic), styles, themes, merges,
+  conditional formats, validation, tables, comments/threaded comments, hyperlinks, names, freeze
+  panes, outlines, print settings, pictures, shapes (incl. ink as DrawingML polylines), sparklines,
+  PivotTables (caches and tables), protection, calc settings — `crates/engine/src/io.rs`,
+  `crates/xlsx/src/{read,write,sheet_read,sheet_write}.rs`, `docs/file-format-parity.md`.
+- `.xlsm`/`.xltm` keep their VBA project byte-for-byte (macros are **never run**); `.xltx`/`.xltm`
+  templates save with the template content type — `crates/xlsx/src/lib.rs` (`XlsxKind`), `write.rs`,
+  `io.rs` comments.
+- **Import-only**: `.xls` (BIFF8; values, formulas, number formats, merges, sizes, names — no fonts/
+  fills/borders/charts/pictures/CF/validation) `crates/xlsx/src/xls/`; `.xlsb` and `.ods`
+  (worksheet **values only**, cached formula results) `crates/xlsx/src/{xlsb,ods}.rs`.
+- **Text/data**: CSV and TSV/TXT (delimiter detection; writes the *displayed* text, General keeps full
+  numeric precision) `crates/xlsx/src/csv.rs`, `io.rs::csv`; JSON workbook (debug format, serde of the
+  internal model) `io.rs`; HTML export (one sheet as a table; refuses >100,001 rows) `io.rs::to_html`.
+- **PDF export** from a sheet (own PDF 1.7 writer, 14 standard fonts, no embedding) —
+  `crates/pdf/src/lib.rs`, `crates/engine/src/cmd/print.rs::export_pdf`.
+- **Password-encrypted `.xlsx` open** (Agile and Standard [MS-OFFCRYPTO] schemes) via `password`
+  parameter; the workbook opens without a save path and is saved **without** the password —
+  `crates/xlsx/src/crypto.rs`, `io.rs`, `docs/control-protocol.md`.
+- **Save is refused** for `.xls`, `.xlsb`, `.ods` (import-only) — `io.rs::save_bytes_as`.
 
-XLSX pass-through keeps custom XML, external links, connections, query tables, printer settings, form/ActiveX controls, OLE objects, sheet backgrounds and chart sheets (`crates/xlsx/src/passthrough.rs`). Dropped: slicers and slicer caches, timelines, the data model, table-attached query tables, unmodelled `extLst`, chart details (`docs/file-format-parity.md`).
+### Charts, pivots, analysis
+- 25 chart kinds (column/bar/line/pie/doughnut/area/scatter/bubble/radar/histogram/waterfall/funnel/
+  treemap/sunburst/box-whisker/stock/combo…) with a Chart Design tab, Format pane, Recommended Charts
+  (own heuristic), trendlines, PivotCharts — `crates/model/src/features.rs` `ChartKind`,
+  `crates/chart/src/`, `docs/chart-parity.md`.
+- PivotTables: field list, Filters/Rows/Columns/Values areas, report filters, layouts, date grouping,
+  show-values-as, calculated fields, grand totals; round-trip to/from XLSX —
+  `crates/engine/src/cmd/pivot.rs`, `crates/xlsx/src/pivot.rs`, `docs/parity-checklist.md`
+  (PivotTable Analyze 13/13, Design 4/4).
+- Data tools: sort, AutoFilter (incl. filter-by-value/colour, top-10, custom), advanced filter, remove
+  duplicates, text-to-columns, Flash Fill, group/ungroup/subtotals, consolidate, scenario manager,
+  Goal Seek, data table — `crates/engine/src/cmd/{data,whatif}.rs`.
+- Solver (Simplex LP + Evolutionary + local nonlinear; Answer/Limits reports; no Sensitivity report),
+  Forecast Sheet, Analysis ToolPak (13 of 19 tools) — `crates/engine/src/cmd/{solver,forecast,analysis}.rs`,
+  `docs/gaps.md` §13.
+- Native printing and print preview via the shared `craft-print` library (pinned git rev in
+  `apps/gridcraft/Cargo.toml`), plus Page Setup, Page Break Preview and Page Layout (paper) view —
+  `crates/engine/src/cmd/print.rs`, `docs/control-protocol.md` §Native printing.
 
-### Automation surface (the main reason to use GridCraft over Excel)
-- **CLI** `gridcraft-cli` (headless): `info`, `convert`, `eval`, `cat`, `check`, `run`, `commands`, `functions`, `mcp`, `send`, `version` (`apps/gridcraft-cli/src/main.rs`; `docs/cli.md`). `check` recalculates formulas and compares to Excel's cached values plus XLSX round-trip fidelity with machine-readable `--json` (`apps/gridcraft-cli/src/check.rs`).
-- **MCP server** on stdio: `gridcraft-cli mcp` (headless in-process session) or `gridcraft-cli mcp --connect 7979` (bridged to a running window); 21 tools including `execute_command`, `read_range`, `write_range`, `set_cell`, `evaluate_formula`, `format_range`, `insert_chart`, `create_table`, `sort_range`, `filter`, `open_workbook`, `save_workbook`, `screenshot`, `list_functions` (`crates/mcp/src/tools.rs`; `docs/mcp.md`).
-- **Control channel** of the desktop app: JSON lines on `127.0.0.1:<port>`, bound localhost-only (`apps/gridcraft/src/control_server.rs:15`). `engine.execute` reaches every command; `ui.click`/`ui.cell.*`/`ui.key`/`ui.text`/`ui.dialog.*` drive real pointer/keyboard/dialogs; `ui.screenshot` returns a PNG; `document.inspect`, `sheet.read`, `cell.get`, `engine.journal` inspect state (`crates/ui-egui/src/control.rs`; `docs/control-protocol.md`).
-- **In-workbook scripts**: `automate.recordActions`, `automate.newScript`, `automate.runScript`, `automate.allScripts`, `automate.deleteScript`; saved in the workbook; `engine.journal` returns a replayable command list with secrets stripped (`crates/engine/src/cmd/extra.rs`).
-- **Sample workbooks** for tests: `file.new {"sample": "sales"|"budget"|"grades"}` (`crates/engine/src/sample.rs`).
-- **Web build** (WebAssembly) exists and is a workspace member: `apps/gridcraft-web` (trunk; `?sample=sales`, browser file picker for open, download for save — README "Web").
-- Offscreen UI render for CI/screenshots without a window: `cargo run -p gridcraft-ui-egui --example snapshot -- --sample sales out.png` (`crates/ui-egui/examples/snapshot.rs`).
+### Automation surface (the reason to read this skill)
+- **CLI** `gridcraft-cli` (headless; *not* inside the app bundle — install separately): `info`,
+  `convert` (to `.xlsx`/`.csv`/`.tsv`/`.json`/`.html`), `eval`, `cat`, `run` (scripted `--cmd`/`--script`
+  steps over a workbook, `--out`), `check`, `commands`, `functions`, `mcp`, `send`, `version` —
+  `apps/gridcraft-cli/src/main.rs`, `docs/cli.md`.
+- **MCP server** over stdio (`gridcraft-cli mcp [--in FILE | --sample NAME]`, or `--connect PORT` to
+  drive a running app) with tools `execute_command`, `read_range`, `write_range`, `set_cell`, `get_cell`,
+  `evaluate_formula`, `format_range`, `insert_chart`, `create_table`, `sort_range`, `filter`,
+  `open_workbook`/`save_workbook`/`new_workbook`, `undo`/`redo`, `screenshot` (remote/desktop only),
+  `list_commands`, `list_functions`, `inspect_workbook`, `select` — `crates/mcp/src/tools.rs`, `docs/mcp.md`.
+- **Control channel**: the desktop app started with `--control <port>` (or `GRIDCRAFT_CONTROL_PORT`)
+  accepts newline-delimited JSON on `127.0.0.1`: `engine.execute`, `document.inspect`, `sheet.read`,
+  real pointer/keyboard input (`ui.click`, `ui.drag`, `ui.key`, `ui.text`), editor driving
+  (`ui.edit.*`), dialogs (`ui.dialog`), ribbon/backstage (`ui.ribbon`, `ui.backstage`), `ui.screenshot`
+  (PNG), `app.open`/`app.save`/`app.quit` — `crates/ui-egui/src/control.rs`, `docs/control-protocol.md`.
+- **Recorded scripts** on the Automate tab: record → save → run/delete (`automate.recordActions`,
+  `automate.newScript`, `automate.runScript`, …) — `crates/engine/src/cmd/extra.rs`.
+- **Web (WebAssembly)**: same UI crate via eframe web runner, `trunk build --release` → `dist/web`;
+  URL flags `?sample=`, `?webgl`, `?host=parent`; no TCP control channel in the browser —
+  `apps/gridcraft-web/src/main.rs`.
+- Programmatic calls **never open dialogs**: a command with missing file params returns an error like
+  "programmatic calls never open dialogs" instead (`crates/engine/src/lib.rs::execute_headless`).
 
 ## Known limitations and not-implemented
 
-- **Alpha, ~50% "ready for real work"** (`ROADMAP.md`); the ranked work list is `docs/gaps.md`.
-- **XLSX output is unproven in Excel**: no real-world corpus run; whether Excel opens GridCraft's output without a repair prompt is unknown (`docs/gaps.md` §1). Treat every saved file as suspect until verified (see verification protocol).
-- **Large workbooks fail**: ~100 MB XLSX does not open; recalculation is single-threaded (#175; `docs/gaps.md` §2; no threading in `crates/calc`).
-- **Lossy saves**: slicers/slicer caches, timelines, data model, table-attached query tables, unmodelled `extLst` and chart details are dropped on XLSX save (`docs/gaps.md` §3; `crates/xlsx/src/passthrough.rs` `REWRITTEN` list). Slicers can be inserted and used in-session but are not written to file.
-- **Charts lose fidelity**: histogram, box, waterfall, funnel, treemap, sunburst and stock charts do not survive XLSX round trip; axis scaling, label options, error bars and per-point formatting not modelled (`docs/gaps.md` §4; `Chart` struct has only title/legend/axis titles — `crates/model/src/features.rs`).
-- **Non-Latin text**: CJK/Thai/Hebrew have system-font fallback but no complex shaping (Arabic/Devanagari), no bidi; PDF export cannot carry any non-Latin script (`docs/gaps.md` §5; `docs/localization-parity.md`).
-- **Calc correctness edge cases** exist (15-significant-digit equality, spill invalidation after structural edits, 3-D span deletion — `docs/gaps.md` §6). Verify numbers against an independent oracle for high-stakes work.
-- **Legacy/foreign formats are read-only and partial**: `.xls` (no styles/objects, no write), `.xlsb`/`.ods` (values only, no write), encrypted workbooks cannot be saved with a password (`docs/gaps.md` §7).
-- **No macros, no add-ins**: VBA is preserved byte-for-byte in `.xlsm`/`.xltm` but never executed; there is no VBA/COM/add-in model (`docs/file-format-parity.md`; `home.addIns` returns a hint pointing to MCP/scripts).
-- **Get & Transform is minimal (~10%)**: no Power Query editor, connections, refresh, From Web, stocks/geography data types or data-model relationships (`docs/parity-checklist.md` missing list; `docs/gaps.md` §12).
-- **Missing Excel catalog entries** (generated checklist): `insert.smartArt/screenshot/map/timeline/wordArt/signatureLine/object/equation`, `data.fromWeb/stocks/geography/relationships/analyzeData`, `review.smartLookup/translate/showChanges` (`docs/parity-checklist.md`).
-- **PivotTables unverified in Excel**; calculated items and `GETPIVOTDATA` not implemented (`docs/gaps.md` §8; absent from `crates/functions/src` and `crates/engine/src/cmd/pivot.rs`).
-- **Keyboard parity is partial**: ~60 shortcuts declared in the registry at this commit (62 unique `shortcut` strings) vs Excel's 200+ (`docs/gaps.md` §9); ribbon key tips cover only some Home/legacy paths (README "Ribbon access keys").
-- No iOS/Android; no collaboration/co-authoring (`ROADMAP.md` "By dimension": platforms ~80%, the gap is mobile).
-
-Claimed but unverified in code: the README's "89% of the Excel ribbon commands" figure is stale — the generated checklist in the same repo says 274/290 (94.5%) (`README.md` vs `docs/parity-checklist.md`).
+- **No write support** for `.xls`, `.xlsb`, `.ods` (import only); `.xls` import lacks fonts, fills,
+  borders, charts, pictures, comments, CF, validation, freeze panes; `.xlsb`/`.ods` import values only,
+  formula cells use their last saved values — `crates/engine/src/io.rs`, `docs/file-format-parity.md`.
+- **Encryption is read-only**: GridCraft cannot save a password-protected file, and encrypted `.xls`
+  (FILEPASS) or RC4 files are refused — `docs/gaps.md` §7.
+- **Macros never run** and VBA is dropped on open unless saving as `.xlsm`/`.xltm` (kept byte-for-byte,
+  not executed) — `docs/gaps.md` §21.
+- **Real-Excel fidelity is unproven**: nobody has confirmed Excel opens GridCraft's output without a
+  repair prompt across a real corpus; some unmodelled XLSX content (slicers, slicer caches, timelines,
+  the data model, query tables attached to tables, unmodelled `extLst`) is dropped on save. Slicers can
+  be created in-app (thin front-end over filters: `crates/engine/src/cmd/slicer.rs`) but are not
+  written to XLSX. Chart sheets are preserved unchanged but cannot be viewed/edited/created —
+  `docs/gaps.md` §1/§3, `docs/file-format-parity.md`, `docs/chart-parity.md`.
+- **Charts are shallow**: no 3-D types, axis scaling (min/max/log), error bars, data tables under
+  charts, per-point formatting, full data labels; several kinds (stock, combo, treemap, sunburst, box &
+  whisker, waterfall, funnel) "lose their kind in XLSX" (open PRs #158/#161); charts can't be resized
+  (#190) — `docs/chart-parity.md`.
+- **Scale limits**: ~100 MB XLSX files fail to open (#175); recalculation is single-threaded;
+  whole-sheet operations on huge ranges are bounded/refused (HTML export caps at 100,001 rows; CSV at
+  512 MiB) — `docs/gaps.md` §2, `crates/engine/src/io.rs`.
+- **No Power Query editor** (only `data.getData` from CSV/TSV/JSON arrays of objects), no connections
+  refresh, no data model, no `data.fromHtml` (HTML *import* is missing; the keytip table reserves it
+  as "pending", `crates/ui-egui/src/keytips/keytip_table/generated.rs`), no Solver Sensitivity report
+  or AllDifferent constraints — `docs/gaps.md` §12/§13, `crates/engine/src/cmd/extra.rs`.
+- **HTML input**: a `.html` path opened via `file.open` is treated as delimited text, not parsed HTML
+  (`io.rs` falls through to `read_csv`) — docs/file-format-parity.md's "read via Get Data ▸ From HTML"
+  is not backed by code (uncertain — see `crates/xlsx/src/`, no HTML reader exists).
+- **Non-Latin text**: PDF export can't render CJK/Arabic/Devanagari/Thai (standard PDF fonts only, no
+  embedding); Arabic/Devanagari shaping missing in the grid — `docs/gaps.md` §5, `crates/pdf/src/lib.rs`.
+- **One OS window**: `view.newWindow` opens a *copy of the workbook* as another document, not a
+  second window; `view.arrangeAll` is a no-op — `crates/engine/src/cmd/extra.rs`, `docs/gaps.md` §20.
+- **No live formulas in non-English input**: interface languages exist (11 variants in
+  `crates/ui-egui/src/i18n.rs`) but only chrome is translated; formula names/separators stay English
+  canonical (`docs/control-protocol.md`, `docs/formula-input.md`); Spanish input mode exists as a
+  formula-entry aid only.
+- **Localization maturity**: translation coverage is partial (ribbon-level), per `docs/gaps.md` §11;
+  README's "89% ribbon / 17 chart types" numbers are stale — the generated `docs/parity-checklist.md`
+  (94.5%) and `docs/chart-parity.md` (25 kinds) are authoritative.
+- No VBA/Office Scripts/plugin or custom-function API; no collaboration/co-authoring; no mobile build;
+  no accessibility tree for the grid; no in-app AI (`docs/gaps.md` §16/§18/§21-23).
 
 ## How to operate
 
-Launch (macOS):
-- `open -a GridCraft` or `/Applications/GridCraft.app/Contents/MacOS/GridCraft` (bundle id `ai.storyteller.gridcraft`; Info.plist). Do not launch the GUI when a headless path suffices — the CLI/MCP cover most agent work.
-- Desktop flags actually parsed (`apps/gridcraft/src/main.rs:253`): `--version`/`-V`, `--control <port>`, `--sample [sales|budget|grades]`, and positional file paths (a bare `--sample` defaults to `sales`). Env: `GRIDCRAFT_CONTROL_PORT`, `GRIDCRAFT_NO_PREFS` (no saved prefs, stderr-only logs — use in agent test runs), `GRIDCRAFT_NO_NATIVE_MENU` (macOS), `RUST_LOG` (env_logger directives).
-- The `gridcraft-cli` binary is not inside the app bundle: get it from GitHub releases (`gridcraft-cli-<ver>-macos-universal.zip`, signed/notarized) or build with `cargo install --path apps/gridcraft-cli` / `cargo run -p gridcraft-cli -- <subcommand>` (`docs/releasing.md`; README Downloads).
-- Settings/logs on macOS: `~/Library/Application Support/GridCraft/` (`ui.json`, `prefs.json`, `logs/gridcraft.log` with two rotated backups — README "Logs").
-- Document model: one app window with one or more open workbooks; open adds a document, `window.activate {"index": n}` switches, `view.newWindow` opens a second linked window. Sheets are workbook tabs (`sheet.activate`, `sheet.next/previous`); the `sheet` param selects a sheet by name in most commands.
-- Files open via File → Open, Finder double-click/Open With, drag-and-drop onto the window, command-line paths, `file.open`, or MCP `open_workbook`. Imports (`.xls`, `.xlsb`, `.ods`, encrypted) open without a save path by design; Save then asks where to write.
+### macOS launch and flags
+- Launch: `open -a GridCraft`; open a document: `open -a GridCraft /path/book.xlsx` (Finder
+  double-click and `open` arrive as Apple events — `apps/gridcraft/src/apple_events.rs`).
+- Binary (for flags/environment): `/Applications/GridCraft.app/Contents/MacOS/GridCraft [--control PORT]
+  [--sample budget|sales|grades] [files…]` — `apps/gridcraft/src/main.rs` (usage doc-comment).
+  `--sample` without a name opens `sales`; `--version` prints `GridCraft 0.8.0`.
+- Environment: `GRIDCRAFT_CONTROL_PORT=<port>` (same as `--control`), `GRIDCRAFT_NO_PREFS=1` (no
+  settings/logs written — the mode for agents' test runs), `RUST_LOG` for log directives.
+- Logs: `~/Library/Application Support/GridCraft/logs/gridcraft.log` (rotated `.1`/`.2`, 16 MiB cap)
+  next to `ui.json`/`prefs.json` — README.md §Logs.
 
-Core workflows:
-- Headless edit/convert: `gridcraft-cli run --in book.xlsx --cmd 'home.bold={"range":"A1:C1"}' --cmd 'cell.set={"cell":"D2","input":"=B2*C2"}' --out book.xlsx --print A1:D5` (`docs/cli.md`).
-- Evaluate: `gridcraft-cli eval '=XLOOKUP("b",{"a","b"},{1,2})'` or `eval '=SUM(B2:B9)' --in book.xlsx`.
-- Inspect: `gridcraft-cli info book.xlsx --json`; read: `gridcraft-cli cat book.xlsx --range B4:F15 --csv`.
-- Drive the running app: start `gridcraft --control 7979`, then JSON lines like `{"id":1,"method":"engine.execute","params":{"command":"cell.set","params":{"cell":"B2","input":"=SUM(A1:A9)"}}}`, then `{"id":2,"method":"ui.screenshot","params":{"path":"/tmp/shot.png"}}` (`docs/control-protocol.md`). One request per line, one reply per line.
-- MCP: `claude mcp add gridcraft -- gridcraft-cli mcp` (headless) or `--connect 7979` (drives the visible window; adds `screenshot`).
-- Fonts: GridCraft bundles none; it uses system fonts (README "License and credits"). UI text for a chosen language falls back to English when untranslated.
+### The CLI (install separately)
+The app bundle ships no CLI; install with `cargo install --path apps/gridcraft-cli` from a source
+checkout, or the release zip `gridcraft-cli-<ver>-macos-universal.zip` (README.md Downloads,
+`docs/cli.md`). Common calls:
+
+```sh
+gridcraft-cli info book.xlsx [--json]
+gridcraft-cli convert in.xls out.xlsx [--sheet Sales]     # xlsx/csv/tsv/json/html by extension
+gridcraft-cli eval '=XLOOKUP("b",{"a","b"},{1,2})'        # → 2
+gridcraft-cli cat book.xlsx --range A1:F20 [--formulas|--csv]
+gridcraft-cli run --in book.xlsx --cmd 'cell.set={"cell":"D2","input":"=B2*C2"}' \
+    --cmd 'edit.fillDown={"range":"D2:D20"}' --out book.xlsx --print A1:D5
+gridcraft-cli check corpus/ --json                        # calc oracle + XLSX round-trip fidelity
+gridcraft-cli commands --search chart                     # every command and its params doc
+gridcraft-cli send 7979 engine.execute '{"command":"home.bold","params":{"range":"A1:C1"}}'
+```
+
+A `--cmd` is `id`, `id={json}` or `id {json}`; `--script` reads one step per line (blank/# lines
+skipped). The first failing step stops the run with a non-zero exit (`docs/cli.md` §`run`).
+
+### Control channel (drive the running app)
+```sh
+/Applications/GridCraft.app/Contents/MacOS/GridCraft --sample sales --control 7979
+# then, newline-delimited JSON to 127.0.0.1:7979:
+{"id":1,"method":"engine.execute","params":{"command":"cell.set","params":{"cell":"B2","input":"=SUM(A1:A9)"}}}
+{"id":2,"method":"ui.screenshot","params":{"path":"/tmp/shot.png"}}
+```
+`ui.inspect` first (ribbon tab, editor, open dialog, message, grid rect) then act with `ui.click`/
+`ui.drag`/`ui.key`/`ui.text`/`ui.edit.*`/`ui.dialog`; `ui.screenshot` returns PNG (needs a visible
+window). `app.open {path, password?}` opens files; `file.open` with a password-protected workbook
+returns an error without the password, never a dialog (`docs/control-protocol.md`).
+
+### MCP (for agent tool-calling)
+```sh
+claude mcp add gridcraft -- gridcraft-cli mcp                     # headless in-process session
+claude mcp add gridcraft-app -- gridcraft-cli mcp --connect 7979 # drive the visible app
+```
+Tools and resources per `docs/mcp.md` (protocol `2025-06-18`; older clients answered in their own
+version). Results are one pretty-JSON text block; failures set `isError: true`.
+
+### Document model, save/export flow
+- One window, multiple documents; switch with the Window menu / `window.activate {index}`; hide with
+  `view.hideWindow`. Sheet tabs at the bottom. File → New opens the Backstage (New blank or
+  `budget`/`sales`/`grades` samples; pages: home, new, open, info, saveAs, print, export, options,
+  close — `docs/ui-parity.md`).
+- Save (`file.save`/`file.saveAs`/⌘S/⇧⌘S): `.xlsx` by default; the extension picks the format
+  (`.csv`, `.tsv`, `.json`, `.html`, `.pdf`). `.pdf` saves a print of the sheet (Page Setup applies)
+  and does not mark the workbook saved. `file.saveBytes {format}` returns base64 without writing.
+- Exports: `file.exportPdf {path?}` (no path → base64 + page count), `file.exportCsv {path, sheet?}`,
+  `file.exportHtml {path}`, `file.printPreview`, and on the desktop `ui.printSettings` /
+  `ui.printSubmit` (native printer jobs via craft-print).
+
+### Keyboard essentials (verified)
+- ⌘S save, ⇧⌘S Save As, ⌘O open, ⌘N new, ⌘W close, ⌘Z/⇧⌘Z undo/redo, ⌘Y redo — `crates/ui-egui/src/ribbon.rs::shortcut`.
+- ⌘B/⌘I/⌘U bold/italic/underline; Ctrl+1 Format Cells; ⌘D fill down; ⌘R fill right; ⌘E Flash Fill;
+  ⌘T table; ⌘K insert link; Ctrl+Shift+L filter; F2 edit — `ribbon.rs`, `keymap.rs`, `grid.rs`.
+- Excel-for-Mac variants are mapped in `crates/ui-egui/src/keymap.rs` (⌘ vs Control differences).
+- Key tips: press **F10** (macOS; Fn+F10 if needed), then sequence letters; a 364-sequence table covers
+  all tabs (per control badges) — `crates/ui-egui/src/keytips/keytips.json`, `docs/ui-parity.md`.
+  (README's "initial Home-only key tips" is stale.)
 
 ## Working with an AI agent
 
+**Prefer headless over GUI.** For "read/write/convert/verify" jobs use `gridcraft-cli` (or MCP) on
+files — no window, no prefs, deterministic. Drive the GUI over the control channel only when the task
+is genuinely about the UI (dialogs with no command equivalent, visual state, screenshots, printing).
+Never drive the GUI blind: `ui.inspect` / `ui.screenshot` before and after, and act on what they show.
+
 Legitimate agent work:
-- **Prepare inputs**: generate CSV/TSV data files for import; convert `.xls`/`.xlsb`/`.ods` sources to `.xlsx` via `gridcraft-cli convert`.
-- **Build/edit workbooks headlessly**: use `gridcraft-cli run` scripts or MCP tools; they exercise the same command registry as the UI, so results are reproducible. Use `commands --json`/`functions --json` to discover parameters rather than guessing (never invent a command id or param).
-- **Verify outputs**: re-open saved files (`info`, `cat`, `check`) and compare. `gridcraft-cli check` is the strongest oracle: it compares your recalculated values against the cached values an Excel-authored file ships, and round-trips the file, exiting non-zero on any difference (`docs/cli.md` §check).
-- **Drive the real UI only with eyes open**: over the control channel prefer commands first; use `ui.*` input plus `ui.screenshot` only to verify UI state. Screenshots settle animations first, so one screenshot is a reliable final state (`docs/control-protocol.md`).
-- **Inspect/repair project files**: `.xlsx` is a ZIP of XML you may inspect generically; GridCraft's own JSON export (`file.saveBytes {"format":"json"}` / `.json`) round-trips the workbook model and is useful for debugging, but is **not** an interchange format (notes and hyperlinks break export — `docs/file-format-parity.md`).
+- **Prepare inputs**: build `.xlsx` from commands (`gridcraft-cli run --script steps.jsonl`), convert
+  `.xls`/`.xlsb`/`.ods`/CSV/TSV into `.xlsx` (`convert`), or generate CSV/TSV/JSON and import with
+  `data.getData`. All GridCraft inputs must end up in a supported read format (`io.rs::FileKind`).
+- **Interpret/repair project files**: XLSX is the native format and is documented in code
+  (`crates/xlsx/src/`); the `.json` workbook is a debug serialization of the internal model — treat it
+  as unstable, never a long-lived interchange format. "Repair" means: open in GridCraft, inspect
+  (`info`, `check`), fix with commands, save as `.xlsx`. Do not promise recovery of parts GridCraft
+  doesn't model (slicers, timelines, data model, chart sheets beyond pass-through).
+- **Verify exports honestly**: run `gridcraft-cli check` on round-tripped files, compare `cat`/`info`
+  output against expectations, check PDF page counts. A zero exit from `check` means *GridCraft*
+  agrees with itself and the cached values — it does not prove Excel will open the file cleanly
+  (explicitly unverified, `docs/gaps.md` §1).
+- **Scripts**: recorded scripts (`automate.*`) capture and replay commands; they are a convenience
+  layer over the same command ids, not a separate API.
 
-What an agent must NOT do:
-- Never assume `.xls`, `.xlsb` or `.ods` can be written, or that macros run. Saving to these extensions returns an explicit error (`crates/engine/src/io.rs:190-208`).
-- Never call `file.save`/`app.save` without a path when scripting: with no path it files a `UiRequest::Dialog(saveAs)` instead of writing (`crates/engine/src/cmd/file.rs:99-105`); programmatic runs should always pass `path`.
-- Never trust an export silently — a save can drop slicers/timelines/data-model parts; PDF silently lacks non-Latin glyphs. Re-open and diff.
-- Don't drive the GUI blind (clicking coordinates without `ui.inspect`/screenshot feedback); hit-testing depends on window size and scroll state.
-- Don't build ranges from far-apart cells: a two-cell span across XFD1048576 expands to an enormous rectangle (CSV/TSV export refuses anything over 512 MiB with an error instead of allocating — `docs/file-format-parity.md` #528).
+Must NOT attempt:
+- Writing `.xls`/`.xlsb`/`.ods` or saving password protection; expecting macros to run; expecting
+  slicers/timelines to survive a save; assuming HTML import; assuming multiple windows per workbook.
+- Editing `.xlsx` with raw XML surgery on files that contain unmodelled parts (slicer caches, VML,
+  custom XML) — GridCraft's own writer is the only supported path, and even it drops parts it doesn't
+  model once it rewrites them; prefer read-only analysis of such files.
+- Treating formula input as locale-independent without checking `docs/formula-input.md` (canonical
+  English syntax is what files and APIs use).
 
-## Verification protocol
+## Verification protocol (alpha discipline)
 
-Alpha discipline — apply to every GridCraft artifact:
-1. **Throwaway round trip**: start from a copy (or `--sample`), make one change, save, re-open in a fresh session (`gridcraft-cli info`/`cat`), and export again; confirm the change and the file size/type.
-2. **Never trust a silent export**: for `.xlsx` use `gridcraft-cli check` (calc oracle + round-trip categories); for CSV/PDF open the exported file (text editor / PDF viewer) and spot-check values and scripts; for `.xlsm`, confirm macros are present but remember they never run.
-3. **Version and back up per session**: work on copies (`book.working.xlsx`), keep the original untouched; there is no autosave/recovery soak yet (`docs/gaps.md` §10), so only what you save exists on disk.
-4. **Version drift**: the installed app can lag repo HEAD (here: 0.6.1 installed vs 0.7.0 at HEAD) — verify against your installed version; update only between projects; re-run your round-trip test after an update.
-5. **Cross-check numbers** for finance/science work: compare against an independent implementation or Excel, because calc edge cases exist (`docs/gaps.md` §6).
+1. **Throwaway round-trip before any real work**: new workbook → the exact edit → save `.xlsx` →
+   reopen in GridCraft → `gridcraft-cli check file.xlsx`. Add the source file itself to `check` when
+   testing formula fidelity (it recalculates and compares against Excel-cached values).
+2. **Never trust a silent export**: CSV/HTML/PDF exports are one-shot (`file.exportCsv` etc.) with no
+   diff UI. Re-open or re-import the artifact, or inspect it (`cat`, PDF page count, open the PDF in
+   another reader). Remember PDF export cannot render non-Latin text.
+3. **Version and back up**: keep the previous version of any workbook you edit; GridCraft is alpha and
+   autosave/recovery has not been soaked (`docs/gaps.md` §10). For agent runs, files are safer than
+   GUI state — save after each logical step (`--out`) rather than at the end.
+4. **Update between projects, not during**: the app auto-updates via the ArtCraft Launcher; update,
+   then re-run your round-trip before a new task (`README.md` Downloads; repo is the source of truth
+   for what a given version can do).
 
 ## Sources & evidence
 
-- Repo: https://github.com/storytold/gridcraft — HEAD commit inspected: `d9d09f0baa912e88c5111107903fc8c640214b57` ("Release 0.7.0", 2026-10-14); installed app `/Applications/GridCraft.app` reports `0.6.1` (Contents/Info.plist).
-- Key files read: `README.md`, `Cargo.toml`, `ROADMAP.md`, `AGENTS.md`; `apps/gridcraft/src/main.rs`, `apps/gridcraft/src/control_server.rs`, `apps/gridcraft-cli/src/main.rs`, `apps/gridcraft-cli/src/check.rs`; `crates/engine/src/io.rs`, `crates/engine/src/cmd/{mod,file,insert,print,slicer,extra,view}.rs`; `crates/model/src/features.rs`; `crates/ui-egui/src/{control,i18n}.rs`; `crates/mcp/src/tools.rs`; `crates/xlsx/src/{csv.rs,passthrough.rs}`; `apps/gridcraft-web/src/*`.
-- Docs read: `docs/cli.md`, `docs/mcp.md`, `docs/control-protocol.md`, `docs/file-format-parity.md`, `docs/function-parity.md`, `docs/parity-checklist.md`, `docs/gaps.md`, `docs/localization-parity.md`, `docs/{xlsb,ods}-import.md`, `docs/cell-pictures.md`.
-- Date: 2026-10-14.
+- Repo: https://github.com/storytold/gridcraft — inspected at tag **v0.8.0**, commit
+  `823c56582d00be91e31b4f7f3680496cf89e84fb` ("Release 0.8.0", 2026-10-17). The installed app at
+  `/Applications/GridCraft.app` reports `CFBundleShortVersionString` 0.8.0
+  (`ai.storyteller.gridcraft`) — repo and installed version match; if your installed version differs,
+  verify against your installed version.
+- Date of inspection: 2026-10-18. Repo treated read-only.
+- Key files read: `README.md`, `ROADMAP.md`, `AGENTS.md`, `Cargo.toml`, `docs/{cli,mcp,control-protocol,parity-checklist,function-parity,chart-parity,file-format-parity,gaps,ui-parity,cell-pictures}.md`,
+  `apps/gridcraft-cli/src/main.rs`, `apps/gridcraft/src/main.rs`, `crates/engine/src/{io.rs,lib.rs,sample.rs,catalog.rs}`,
+  `crates/engine/src/cmd/*.rs`, `crates/xlsx/src/lib.rs`, `crates/mcp/src/{tools.rs,tests.rs}`,
+  `crates/ui-egui/src/{control.rs,keymap.rs,ribbon.rs}`, `crates/model/src/features.rs`,
+  `crates/pdf/src/lib.rs`, `packaging/macos/Info.plist.in`, `/Applications/GridCraft.app/Contents/Info.plist`.
+- Shared library: `craft-print` is pinned from `storytold/craft-libs`
+  (`rev d27646a5f7c8b4fc85d9dd3213b8c88b58e0088d`, verified present in the local checkout) — used for
+  native print submission; PDF generation stays in GridCraft (`apps/gridcraft/Cargo.toml`,
+  `craft-libs/crates/print`).
+- Deeper per-topic reference: `docs/target-app-parity.md` (authoritative assessment),
+  `docs/gaps.md` (ranked work list), `docs/architecture.md` (layering).
