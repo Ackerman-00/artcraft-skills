@@ -1,13 +1,16 @@
 # PdfCraft automation tool table (names and titles)
 
+
 Generated from `crates/automation/src/tools.rs` at commit
-`645016addcfb9078c557f0189559ab47cdcee057` (0.9.0). 170 tools.
+`3e3064532f04fd6ec769c6bd7b2c97464757970e` (tag `v0.11.0`). 171 tools.
+
 
 Do not treat this file as a capability contract for a different version: run
 `pdfcraft-cli tools` on the installed binary for the live list with full JSON Schemas,
 descriptions and read-only/destructive flags. Tool names are `snake_case`; MCP rejects dots.
 Command ids (e.g. `page.rotate`) map to tools via `ToolDef::command`; `command_list` reports the
 mapping. See `../SKILL.md` for how to call them (`pdfcraft-cli run`, JSON scripts, MCP).
+
 
 | Tool | Title |
 |---|---|
@@ -28,6 +31,7 @@ mapping. See `../SKILL.md` for how to call them (`pdfcraft-cli run`, JSON script
 | `page_enhance_camera` | Enhance camera image |
 | `page_delete` | Delete pages |
 | `page_move` | Move pages |
+| `page_reverse` | Reverse pages |
 | `page_insert_blank` | Insert a blank page |
 | `page_insert_file` | Insert pages from a file |
 | `page_extract` | Extract pages |

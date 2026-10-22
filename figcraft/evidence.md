@@ -1,8 +1,10 @@
 # FigCraft skill — evidence table
 
-Repo: https://github.com/storytold/figcraft · inspected commit `47438dd4a2e8b49a7e6bb3dfd480262dadc37f12`
-(tag `v0.7.0`, 2026-10-17) · written 2026-10-18. Installed app `/Applications/FigCraft.app` version
-0.7.0 with `FigCraftBuildCommit` = the same SHA, so app and source match.
+Repo: https://github.com/storytold/figcraft · inspected commit `28de91d9ae72fc7fbc2199ac5ee2c8be237980d5`
+(tag `v0.9.0`, "Release 0.9.0", 2026-10-21) · inspected 2026-10-22. The installed app reports
+`FigCraft 0.9.0 (28de91d9……)`, so app and source match. The v0.7.0→v0.9.0 delta is a single
+squashed release commit (206 files, +21,175/−1,356), diffed in full to separate new claims from
+carried-over ones.
 
 Status legend: **implemented** = code path exists and is wired into UI/CLI; **partial** = exists but
 visibly incomplete or unverified outside the repo; **claimed** = asserted in docs/README but not
@@ -10,43 +12,44 @@ confirmed in code by this review.
 
 | # | Claim | Evidence (repo-relative) | Status |
 |---|---|---|---|
-| 1 | Every user-visible behaviour is a command, dispatched identically by menus, shortcuts, CLI, control channel, MCP and plugins | `crates/engine/src/cmd/*` (`spec!`), `docs/architecture.md` › Commands: one path for every surface | implemented |
-| 2 | 212/212 catalogued menu items have a command; 561 commands registered | `docs/parity-checklist.md`, `crates/engine/src/catalog.rs` | implemented (measured) |
-| 3 | MCP server with 18 tools, 4 resources, 4 prompts; headless or attached to the running app | `crates/mcp/src/tools.rs` (`TOOL_NAMES`), `crates/mcp/src/resources.rs`, `crates/mcp/src/prompts.rs`, `docs/mcp.md` | implemented |
-| 4 | Control channel `figcraft --control PORT`, loopback JSON-lines, state methods work while minimised | `apps/figcraft/src/args.rs`, `apps/figcraft/src/control_server.rs`, `crates/ui-egui/src/control.rs`, `docs/control-protocol.md` | implemented |
-| 5 | `figcraft-cli` subcommands: info, export, convert, render, run, commands, mcp, plugin publish, perf, each accepting `--no-system-fonts` | `apps/figcraft-cli/src/main.rs` (USAGE + dispatch), `apps/figcraft-cli/src/files.rs`, `docs/cli.md` | implemented |
-| 6 | Native format `.figcraft` = zip(`document.json` version 1 + `images/<sha256>` + thumbnail + versions + branches + library), bare JSON also opens, atomic save | `crates/format/src/lib.rs` (`EXTENSION`, `VERSION`, `save_bytes_with_history`, `write_file_atomic`, `load_within`) | implemented |
-| 7 | `.fig` (Figma) import, best effort, never saved over | `crates/format/src/fig/` (map.rs, kiwi.rs, network.rs), `docs/file-format-parity.md` | partial — tested only on synthetic fixtures, never real files (`docs/gaps.md` 1 & 3) |
-| 8 | `.fig` export, experimental, whole document, omissions returned as warnings | `crates/format/src/fig/export.rs`, `docs/file-format-parity.md` › Export to `.fig` (experimental) | partial — round trips through FigCraft's own importer; effects/images/prototypes unchecked elsewhere |
-| 9 | REST API file JSON import incl. local-variables JSON and `images/<imageRef>.png` | `crates/format/src/rest/` (mod.rs, props.rs, proto.rs, variables.rs, text.rs), `docs/mcp.md` › Importing REST API file JSON | implemented |
-| 10 | Open formats in code: figcraft, json, fig, svg, png/jpg/jpeg/gif/webp/bmp/tif/tiff; HEIC and video absent | `crates/engine/src/cmd/file.rs` (extension match at the open paths), `docs/file-format-parity.md` (Import table) | implemented for the listed set; HEIC/video explicitly missing |
-| 11 | Export formats: png, jpg, svg, webp, pdf (+ experimental fig); SVG/PDF refuse trees deeper than 256 levels | `crates/doc/src/props.rs` (`ExportFormat::from_ext`), `apps/figcraft-cli/src/files.rs`, `docs/file-format-parity.md` › Export | implemented |
-| 12 | PDF print options: bleed, crop marks, bleed marks, naive CMYK; one page per top-level frame with real text | `apps/figcraft-cli/src/args.rs` (`Args::print`), `docs/cli.md` | implemented (no CMYK output intent — `docs/gaps.md` 23) |
-| 13 | `run` scripts are all-or-nothing and one undo step, with `$step` references between steps | `apps/figcraft-cli/src/files.rs`, `docs/cli.md` › `run`, `crates/engine/src/batch_step_ref_tests.rs`, `batch_rollback_tests.rs` | implemented |
-| 14 | File-access confinement via `--automation-read-root` / `--automation-write-root`, enforced through one engine module | `crates/engine/src/file_access.rs` (+ `crates/engine/clippy.toml` ban on `std::fs`), `docs/mcp.md` › Confining file access | implemented |
-| 15 | Auto layout: flow, wrap, grid with fixed/`fr`/auto tracks, hug/fill/fixed, min/max, absolute, baseline, contentAlign | `crates/layout`, `crates/engine/src/al_*_tests.rs`, `docs/mcp.md` › Conventions | implemented |
-| 16 | Components, variants, overrides, slots, playground, styles and variables with modes/aliases/scopes/bindings | `crates/engine/src/components.rs`, `components_behaviour_tests.rs`, `docs/components-parity.md` | implemented |
-| 17 | Prototyping: interactions, actions incl. conditionals/expressions, transitions, flows, device-frame presentation | `crates/engine/src/proto_*.rs`, `crates/engine/src/proto_*_tests.rs`, `docs/prototyping-parity.md` | implemented; media triggers and macOS/Linux controllers missing |
-| 18 | Dev Mode: inspect, code generation (CSS/HTML/React/Leptos/SwiftUI/Compose), annotations, ready-for-dev, compare changes | `crates/engine/src/codegen.rs`, `code_connect.rs`, `annotations.rs`, `docs/dev-mode-parity.md` | implemented (import lines in generated trees missing) |
-| 19 | Comments, version history (≤100 versions) and branches (≤100) stored in the file | `crates/doc/src/comments.rs`, `crates/engine/src/cmd/comment.rs`, `version_tests.rs`, `crates/format/src/lib.rs` (`MAX_VERSIONS`, `MAX_BRANCHES`, `read_versions`, `read_branches`) | implemented; local to the file, not shared |
-| 20 | Keyboard shortcuts: 129 documented bindings, 126 bound, platform-specific Mac vs Other | `crates/engine/src/keymap.rs` (`KEYS`), `keymap_tests.rs`, `shortcut_parity_tests`, `ROADMAP.md` 2026-10-12 entry | implemented (2 documented bindings missing) |
-| 21 | Sandboxed WASM plugins (wasmi, metered, no fs/net/clock) with manifest permissions, panels and widgets; three examples; server plugin directory | `crates/plugin`, `plugins/sdk`, `plugins/examples/{counter,swatch-grid,tidy-names}`, `docs/plugins.md` | implemented; widgets take clicks only; Figma plugins do not run |
-| 22 | Live sessions (preview): sync, cursors, cursor chat, spotlight, follow, per-person undo, invite links, browser joins; self-hosted `figcraft-server` with edit/view links | `crates/collab`, `crates/collab-net`, `apps/figcraft-server/src/cli.rs`, `docs/collab-protocol.md`, `docs/server.md` | partial — no accounts, no E2E encryption, preview quality |
-| 23 | Recovery copies of unsaved documents every 10 s; `file.recover` | `apps/figcraft/src/recovery.rs` (`INTERVAL = 10.0`) | implemented |
-| 24 | Never-crash discipline: clippy denies unwrap/expect/panic/todo/unimplemented/unreachable in shipped code; commands run behind a guard that rolls back | `Cargo.toml` (`[workspace.lints.clippy]`), `crates/engine/src/guard.rs` | implemented |
-| 25 | WebAssembly build of engine+UI; browser has no system fonts and one window | `apps/figcraft-web`, `Cargo.toml` `[profile.web-release]`, `docs/hardware-parity.md` | implemented (`cargo xtask wasm`) |
-| 26 | "About 49% of the way to replacing Figma" / ~53% ready for real work; feature breadth ~85% | `README.md` (49%), `ROADMAP.md` + `docs/target-app-parity.md` (53%, 85%) | claimed — self-graded estimates, explicitly unmeasured on real files |
-| 27 | No AI features, no spell check, no FIG plugin compatibility, no HEIC/video | `docs/target-app-parity.md` areas 21, 10, 18; `docs/gaps.md` 19, 11, 12 | verified absent |
-| 28 | macOS bundle ships no CLI; CLI is built from source or shipped as a separate zip; Linux AppImage exposes `cli <args>` | `ls /Applications/FigCraft.app/Contents/MacOS` (FigCraft only), `packaging/macos/package.sh` (CLI zip), `docs/mcp.md` (AppImage note) | implemented |
+| 1 | Every user-visible behaviour is a command; 212/212 catalogued menu items, 561 commands registered (published measure 2026-10-17) | `docs/parity-checklist.md`, `crates/engine/src/catalog.rs`, `crates/engine/src/cmd/mod.rs` (`all_commands`) | implemented (measured; a few commands may postdate the measure — count via `commands --json`) |
+| 2 | MCP server: 18 tools, 4 resources/templates, 4 prompts; headless or `--attach` | `crates/mcp/src/tools.rs` (`TOOL_NAMES`), `crates/mcp/src/resources.rs`, `crates/mcp/src/prompts.rs`, `docs/mcp.md` | implemented |
+| 3 | Control channel: 17 methods, loopback JSON-lines, state methods answered while minimised, drawn-frame methods fail fast | `crates/ui-egui/src/control.rs`, `apps/figcraft/src/control_server.rs`, `docs/control-protocol.md` (+ `ROADMAP.md` #720) | implemented |
+| 4 | `figcraft-cli` subcommands info/export/convert/render/run/commands/mcp/plugin publish/perf; `--no-system-fonts` everywhere; exit 2/1/0 | `apps/figcraft-cli/src/main.rs` (USAGE + dispatch), `docs/cli.md` | implemented |
+| 5 | NEW in 0.9.0 — `--automation-read-root`/`--automation-write-root` on `info`, `export`, `convert`, `render`, `run` | `docs/cli.md` › Confining a run (new section), `apps/figcraft-cli/src/main.rs` (+78 in the delta) | implemented |
+| 6 | NEW in 0.9.0 — missing-fonts: `text.missingFonts`/`text.rescanFonts`/`text.loadFont`/`text.refit` commands; `info` prints `missingFonts`; in-app panel | `crates/engine/src/fonts.rs` (new file in delta), `crates/ui-egui/src/missing_fonts.rs` (new), `docs/cli.md`, `docs/mcp.md` › Conventions | implemented |
+| 7 | NEW in 0.9.0 — `node.get`/`document.inspect`/MCP `get_node` report `pluginData`; `node.set {props: {pluginData}}` writes, `null` removes | `ROADMAP.md` 2026-10-20 #879, `crates/engine/src/plugin_data_tests.rs` (new), `docs/plugins.md` | implemented |
+| 8 | Native format `.figcraft` = zip(`document.json` version 1 + `images/<sha256>` + thumbnail + versions ≤100 + branches ≤100 + library), bare JSON opens, atomic save, 16× compression rule in 512 MiB member cap | `crates/format/src/lib.rs` (`EXTENSION`, `VERSION`, `MAX_VERSIONS`, `MAX_BRANCHES`, `DOCUMENT_RATIO`, `MAX_MEMBER`, `write_file_atomic`) | implemented |
+| 9 | `.fig` import best effort, never saved over; budgets from file size; import report; paste from another design app via clipboard HTML (`edit.pasteDesignLayers`, 256 MB cap) | `crates/format/src/fig/`, `docs/file-format-parity.md` › Import, `docs/gaps.md` 1 | partial — synthetic fixtures only; real files untested (gap 3) |
+| 10 | `.fig` export experimental, whole document; checked in other software for layers/fills/gradients/strokes/shadows/vectors/components/text/instances/variables-with-modes/styles; effects, images, prototypes unchecked there; omissions are warnings | `crates/format/src/fig/export.rs`, `docs/file-format-parity.md` › Export to `.fig` | partial — improved since v0.7.0 (was unchecked elsewhere) |
+| 11 | Open formats: figcraft, json (FigCraft or REST incl. slots #792 and grid tracks), fig, svg, png/jpg/jpeg/gif/webp/bmp/tif/tiff; HEIC and video absent | `crates/engine/src/cmd/file.rs` (extension match), `crates/format/src/rest/`, `docs/file-format-parity.md` › Import | implemented for the listed set |
+| 12 | Export formats png/jpg/jpeg/svg/webp/pdf (+ experimental fig); render also jpg/webp; SVG/PDF refuse trees deeper than 256 levels; PDF bleed ≤ 2 in, page boxes, naive CMYK | `crates/doc/src/props.rs` (`ExportFormat::from_ext`), `apps/figcraft-cli/src/args.rs` (`print`, `scale`), `docs/cli.md`, `docs/file-format-parity.md` › Export | implemented |
+| 13 | `run` scripts all-or-nothing, one undo step, `$step` references; can start from a template; no network | `apps/figcraft-cli/src/files.rs`, `docs/cli.md` › `run`, `docs/mcp.md` › Live sessions | implemented |
+| 14 | `collab.*`: headless MCP session and attached app can host/join/share-with-code/publish; `run` cannot; `collab.share` online publishes to a server by default | `docs/mcp.md` › Live sessions, `docs/cli.md` (`mcp`), `crates/collab`, `crates/collab-net` | implemented (preview feature) |
+| 15 | Auto layout incl. grid tracks/fr/spanning; components/variants/slots; prototyping with gamepad triggers and conditionals; Dev Mode code gen (CSS/HTML/React/Leptos/SwiftUI/Compose) | `crates/layout`, `crates/engine/src/components.rs`, `docs/components-parity.md`, `docs/prototyping-parity.md`, `docs/dev-mode-parity.md` | implemented (documented tails in gaps 15–17) |
+| 16 | Keyboard shortcuts: one keymap table, 151 binding rows, 12 groups, Mac vs Windows/Linux variants | `crates/engine/src/keymap.rs` (`KEYS`, `Group::ALL`), `keymap_tests.rs`, `shortcut_parity_tests.rs` | implemented (supersedes the old skill's "129 documented bindings" derivation, which is not in the tree) |
+| 17 | Sandboxed WASM plugins (wasmi, metered, no fs/net/clock), manifest permissions, panels/widgets, 3 examples, server plugin directory + `plugin publish` | `crates/plugin`, `plugins/sdk`, `plugins/examples/`, `docs/plugins.md`, `docs/cli.md` › `plugin publish` | implemented; widgets click-only; Figma plugins don't run |
+| 18 | Recovery copies every 10 s; never-crash clippy discipline; unknown app option refuses startup | `apps/figcraft/src/recovery.rs` (`INTERVAL = 10.0`), `Cargo.toml` lints, `crates/engine/src/guard.rs`, `apps/figcraft/src/args.rs` | implemented |
+| 19 | Parity: README ~49%; ~53% ready, ~85% breadth, ~59% essentials, ~50% mainstream; no AI (0%), no spell check; P3 on screen blocked upstream | `README.md`, `ROADMAP.md`, `docs/target-app-parity.md`, `docs/gaps.md` 7/11/18/19 | claimed — self-graded estimates, unmeasured on real files |
+| 20 | WebAssembly build; browser joins but cannot host, no system fonts, embeds craft-fonts again since 0.9.0 (#885) | `apps/figcraft-web`, `Cargo.toml` (`[profile.web-release]`), `ROADMAP.md` #885, `docs/mcp.md` › Fonts | implemented |
+| 21 | macOS bundle has no CLI (only `FigCraft` binary); CLI ships as separate zip `figcraft-cli-<version>-macos-<arch>.zip`; AppImage exposes `cli` | `ls /Applications/FigCraft.app/Contents/MacOS`, `packaging/macos/package.sh` (`CLI_ZIP`) | implemented |
+| 22 | Templates: 8 built-in starters via `template.list` / `file.newFromTemplate`; 5 example documents in `examples/` | `docs/mcp.md` › Starter templates, `examples/` listing | implemented |
+| 23 | NEW in 0.9.0 (UI/behaviour): drop a document on canvas opens it (#916); duplicating a main makes an instance (#892); measure-while-nudging (#894); `uiScale` in `ui.inspect`; `homeSearch` in `ui.set`; double-click frame label renames in place | `ROADMAP.md` 2026-10-20 entries, `docs/control-protocol.md` diff, `crates/ui-egui/src/ui_scale.rs` (new) | implemented |
+| 24 | Localization: en/ru/tr reviewed, sv command labels, draft catalogs es(+es-419)/fr/de/pt-BR/ja/ko/zh-Hans/cs/id/ka + new bn/fi/nl/pl (0.9.0); engine messages English | `crates/ui-egui/locales/`, `crates/ui-egui/src/i18n.rs` (`LANGS` generated from all `locales/*.toml`), `docs/localization-parity.md`, `README.md` | implemented (five new catalogs in tree but not yet in README/parity tables) |
 
 ## Uncertainties this review could not resolve from the repo
 
-- Actual fidelity of `.fig` import on real files, and of `.fig` export in other software beyond the
-  layer types the docs list as checked (`docs/file-format-parity.md` says effects, images and
-  prototypes are unchecked there).
-- Whether the 49% (README) and ~53% (ROADMAP/parity) figures should be reconciled — both are self-graded
-  and the docs acknowledge no real-file measurement exists.
-- Screen-reader behaviour: implemented via AccessKit but `docs/gaps.md` 22 says screen readers were
-  never run.
-- On-screen Display P3 is blocked upstream (egui-wgpu 8-bit sRGB surface); documents and exports
-  still carry P3 — treat on-screen colour as sRGB.
+- Exact live command count at v0.9.0: the published 561 is the 2026-10-17 `cargo xtask parity`
+  measure; the release commit touched `crates/engine/src/cmd/*` afterwards (behaviour fixes), and
+  no newer published count exists. A raw `spec!`-site count (458) does not reconcile with it
+  without knowing every registration site, so the skill cites the published number with its date.
+- The v0.9.0 `Cargo.toml` declares `figcraft-tools = { path = "crates/tools" }` but no
+  `crates/tools` directory exists in the tree; nothing appears to inherit it, so the workspace
+  still builds — a dangling declaration, not a capability. Uncertain whether it is intentional.
+- Whether the bn/fi/nl/pl catalogs are exposed in the language *picker* is implied (LANGS is
+  generated from every `locales/*.toml`) but the README/parity docs still list only Georgian of
+  the five — treat the five as in-tree drafts.
+- Real-world `.fig` fidelity, and `.fig` export fidelity in other software beyond the documented
+  checks, remain unmeasured (`docs/gaps.md` 1 and 3); screen readers have never been run (gap 22).
+- The installed app's `Info.plist` CFBundleShortVersionString was reported stale by the tasking;
+  it currently reads 0.9.0, but the skill deliberately cites the app's CLI version report instead.

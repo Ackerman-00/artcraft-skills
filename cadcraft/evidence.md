@@ -1,54 +1,57 @@
-# Evidence table — CADCraft skill (v0.8.0)
+# Evidence table — CADCraft skill (v0.10.0)
 
-Repo: `storytold/cadcraft` at `git rev-parse HEAD` = `714111d528acc86dc6b41e03f9a82cabc1066dca` (tag `v0.8.0`, 2026-10-17).
-Installed app: `/Applications/CADCraft.app` version 0.8.0 (`Info.plist`, `CFBundleIdentifier ai.storyteller.cadcraft`).
-Inspection was read-only: no build, no run, no GUI launch. Date: 2026-10-18.
+Repo: `storytold/cadcraft` at tag `v0.10.0`, commit `e86eacf094fefda1cdb6ba5137a336f29deb5d99`
+("Release 0.10.0"). The released CLI reports `cadcraft 0.10.0 (e86eacf094fefda1cdb6ba5137a336f29deb5d99)`.
+Inspection was read-only: no build, no run, no GUI launch. Date: 2026-10-22.
 
-Tier key: **implemented** = code path exists and is wired to a command/CLI/MCP surface; **partial** = exists with documented gaps; **claimed/absent** = README/roadmap mention without a usable code path.
+Tier key: **implemented** = code path exists and is wired to a command/CLI/MCP surface; **partial**
+= exists with documented gaps; **claimed/absent** = README/roadmap mention without a usable code path.
 
 | # | Claim in SKILL.md | Evidence (repo-relative) | Tier |
 |---|---|---|---|
-| 1 | Clean-room AutoCAD reimplementation, MIT OR Apache-2.0, stage pre-alpha | `README.md` (top), `ROADMAP.md:3`, `LICENSE-MIT`/`LICENSE-APACHE`, `AGENTS.md` (clean-room rules) | implemented (status = pre-alpha) |
-| 2 | 409 registered commands; every user action is a command (`CommandSpec`) | `docs/parity-checklist.md:7`, `crates/engine/src/cmd/mod.rs:61,167–207`, `docs/architecture.md` "Commands" | implemented |
-| 3 | MCP server over stdio, headless or bridged; named tools & resources | `docs/mcp.md`, `crates/mcp/src/server.rs:119–126`, `crates/mcp/src/tests.rs:28,37–68` | implemented |
-| 4 | JSON control channel `--control PORT` / `CADCRAFT_CONTROL_PORT`, method table incl. `ui.screenshot`, `ui.render`, `ui.pointer` | `docs/control-protocol.md`, `crates/ui-egui/src/control.rs:191–219` (METHODS), `apps/cadcraft/src/main.rs:228–259` | implemented |
-| 5 | CLI: `info`, `convert`, `run`, `commands`, `sample`, `mcp`, `perf`, `--version` with exact flags | `apps/cadcraft-cli/src/main.rs:58–76` (usage), `:644–670` (dispatch), `:553–595` (mcp args) | implemented |
-| 6 | DXF read: R12–2018 ASCII **and** binary, one reader, pre-2007 code pages | `crates/io/src/lib.rs:62–75`, `crates/io/src/dxf_read.rs`, `crates/dxf/src/codepage.rs`, `docs/file-format-parity.md:58–67` | implemented (R12 **binary** not read — docs note) |
-| 7 | DXF write: 2000–2018 ASCII/binary, R2000 structure, `$ACADVER` set | `crates/io/src/lib.rs:86–107` (`write_with`), `docs/file-format-parity.md:64`, `crates/engine/src/cmd/file.rs:104–120` (`save_options`) | implemented |
-| 8 | DWG read/write through the acadrust DXF bridge (R13+ read; 2000+ write, floor 2004) | `crates/dwg/src/lib.rs:3–11` (`is_dwg`, `Limits`, `VERSIONS`), `crates/io/src/lib.rs:97–103`, `docs/file-format-parity.md:30–56` | partial (synthetic tests only; R13 untested; write lossy) |
-| 9 | DWG save drops unmodelled content and **reports it** (`notSaved` + command-line message) | `crates/engine/src/cmd/file.rs:500–558` (`not_saved`, `not_saved_message`, `drops_unknown`, `report_not_saved`) | implemented (reporting); dropping itself is the gap `docs/gaps.md` #1 |
-| 10 | Export SVG/PNG/PDF; PNG 2400×1600 via CLI; framing (`--window`, `--view`) | `crates/io/src/lib.rs:113–135` (`write_framed`, PNG 2400×1600), `apps/cadcraft-cli/src/main.rs:88–164` (framing) | implemented |
-| 11 | SVG/SVGZ import (shapes, paths, groups, Inkscape layers; no CSS/`use`/text/images/fills) | `crates/io/src/svg_read.rs`, `crates/io/src/lib.rs:69–74`, `docs/gaps.md` FF14, `docs/file-format-parity.md:120` | partial |
-| 12 | AutoLISP: `.lsp`, APPLOAD, `(load)`, `defun c:`, `acad.lsp`/`acaddoc.lsp`; no vlax/DCL/reactors | `docs/autolisp.md`, `crates/engine/src/cmd/lisp.rs:12,18`, `docs/gaps.md` E1 | partial |
-| 13 | Parametric constraints (geometric + dimensional + expressions) | `crates/constraints` (`docs/architecture.md` L2 row), `crates/engine/src/cmd/constraints.rs` | implemented (~50% parity per `ROADMAP.md`) |
-| 14 | Layouts/viewports/plotting: PLOT, EXPORTPDF, PUBLISH, plot styles in own JSON | `crates/engine/src/cmd/layout.rs:74–95`, `crates/engine/src/cmd/plotters.rs:402–407`, `docs/plot-styles.md`, `docs/plotters.md` | implemented; binary `.ctb/.stb/.pc3` unread (`docs/gaps.md` F14) |
-| 15 | Web build: same UI in WASM, no DWG, no autosave, download/upload + `?host=parent` bridge | `apps/cadcraft-web/src/main.rs:1–8`, `apps/cadcraft-web/src/host.rs`, `docs/gaps.md` F4/P1/FF12 | partial |
-| 16 | Desktop autosave `.sv$` + Drawing Recovery + AUDIT/RECOVER | `crates/engine/src/autosave.rs:1–13`, `crates/engine/src/cmd/audit.rs:17–25`, `crates/ui-egui/src/autosave.rs` | implemented (desktop only) |
-| 17 | No 3D: UCS, orbit, solids, surfaces, meshes, sections, rendering; `3DORBIT`/`ATTACH`/`SHARE` return "not available yet" | `docs/gaps.md` F24, `crates/engine/src/cmd/exchange.rs:57–70` | claimed/absent (explicitly unavailable) |
-| 18 | Dynamic blocks: references read + visibility/lookup edits; authoring missing | `docs/gaps.md` F3, `docs/file-format-parity.md:96` | partial |
-| 19 | SHX fonts not parsed (stroke font / `FONTALT` instead; metrics differ) | `README.md` Fonts, `docs/gaps.md` FF8, `crates/fonts` | claimed/absent (no SHX parser) |
-| 20 | Ellipse/spline geometry tessellated; polyline offsets ignore bulges | `docs/gaps.md` top-10 row 3, `docs/geometry-parity.md` | partial |
-| 21 | Keyboard shortcuts exactly as listed (Cmd+N/O/S/Shift+S/W/P, F3 osnap, F5 isoplane, F7 grid, F8 ortho, F9 snap, F10 polar, F11 tracking, F12 dynamic input, Cmd+1/3/8/9, F1, F2) | `crates/engine/src/cmd/settings.rs:20–51`, `edit.rs`, `file.rs`, `layout.rs:79–82`, `crates/ui-egui/src/menus.rs:17–74` | implemented |
-| 22 | macOS packaging: `.app` contains GUI binary only; CLI in separate zip; signed/notarized | `packaging/macos/package.sh:102–167`, `README.md` Downloads (macOS table); verified bundle has no CLI | implemented |
-| 23 | Never-crash discipline: panic guard around commands; no unwrap/expect/panic in production code | `crates/engine/src/guard.rs:1–11`, `AGENTS.md` "Never crash", crate-level `#![deny(...)]` headers | implemented |
-| 24 | Xrefs: attach/bind/detach/reload; no XCLIP, no in-place xref edit | `crates/engine/src/cmd/blocks/xref.rs`, `docs/gaps.md` F2 | partial |
-| 25 | Lossy-save "records could not be read" surfaced as `drawing.inspect` → `skipped`; CLI `convert` prints warning | `crates/engine/src/cmd/inquiry.rs:305`, `apps/cadcraft-cli/src/main.rs:283–291`, `crates/io/tests/skipped_records.rs` | implemented |
-| 26 | 13 interface languages; engine/CLI/MCP messages stay English | `crates/ui-egui/src/i18n/*.tsv`, `docs/localization.md`, `docs/gaps.md` L1 | partial |
-| 27 | No PR test CI (only packaging/lint/release workflows) | `docs/gaps.md` S1, `.github/workflows/` | claimed/absent |
-| 28 | Menu breadth 280/491 (57%), generated 2026-10-12 | `docs/parity-checklist.md:5–8` | measured |
+| 1 | Clean-room AutoCAD reimplementation, MIT OR Apache-2.0, stage pre-alpha (4 of 5 core workflows fail the alpha gate) | `README.md` (top, status badge), `ROADMAP.md` "Why pre-alpha", `docs/roadmap.md` "Alpha gate", `LICENSE-MIT`/`LICENSE-APACHE`, `AGENTS.md` (clean-room rules) | implemented (status = pre-alpha) |
+| 2 | 427 registered commands; menu breadth 283/491 (58%); every user action is a command (`CommandSpec`) | `docs/parity-checklist.md:8` (generated 2026-10-16 by `cargo xtask parity`), 415 `CommandSpec::new(` sites in `crates/engine/src/cmd/` (counted 2026-10-22), `docs/architecture.md` "Commands" | implemented (live source: `cadcraft-cli commands`) |
+| 3 | Scale: ~155k lines of Rust src in 12 crates + 3 apps (+ xtask 1.1k) | counted with `wc -l` on 2026-10-22: crates/src 150,002; apps/src 4,200; xtask 1,097 (`docs/architecture.md`'s "~57,000" predates this and is stale) | measured |
+| 4 | MCP server over stdio, headless or bridged (`--connect [--lazy] [--launch]`, no silent headless fallback); tools `command_line, script, execute, list_commands, inspect_drawing, query_entities, render, find_text, new_drawing, open, save, cancel` + `screenshot/ui_inspect/ui_click` bridged; `shapes` via `execute`; resources `cadcraft://drawing`, `cadcraft://commands` | `docs/mcp.md`, `crates/mcp/src/tools.rs:9–40,113–136`, `crates/mcp/src/backend.rs:134–142` (`open -a CADCraft --args --control PORT`), `apps/cadcraft-cli/src/main.rs:575–602` (arg errors) | implemented |
+| 5 | JSON control channel: 27 top-level methods (METHODS table incl. `ui.elements`, `ui.render`, `ui.set` with theme/animations/systemCursor/saveFormat/saveVersion/interfaceLanguage); limits 16 conns / 256 MiB / 60 s timeout (`not-run` vs `may-have-run`); `ui.dock`/`ui.dock.reset` and `entities {selected:true}` are commands, not top-level methods | `docs/control-protocol.md`, `crates/ui-egui/src/control.rs:191–219` (METHODS), `crates/ui-egui/tests/control_methods.rs` (keeps table in step) | implemented |
+| 6 | CLI: `info`, `convert IN OUT.(dxf|dwg|svg|png|pdf)`, `run [FILE|--sample|--metric] [--script|--script-file|--cmd]… [--save|--export]`, `commands [FILTER]`, `sample (bracket|floorplan)`, `mcp`, `perf [N|FILE]`, `--version`; framing `--window`/`--view`; PNG 2400×1600, model space only | `apps/cadcraft-cli/src/main.rs:57–77` (USAGE), `:113–135` (`write_framed` png 2400×1600), `:328–345` (run flags), `:670–690` (dispatch) | implemented |
+| 7 | DXF read: R12–2018 ASCII (no version gating) + binary R13+; pre-2007 `$DWGCODEPAGE` decode; R12 binary not read | `crates/io/src/lib.rs:62–77` (`read()`), `docs/file-format-parity.md` DXF table (R12 binary row) | implemented (R12 binary absent) |
+| 8 | DXF write 2000–2018 ASCII/binary (default = file's `$ACADVER`, else 2018); DWG write 2000+ (floor 2004 unless 2000 asked); DWT via SAVEAS; NEW/QNEW from `.dwt`/`.dxf` | `crates/io/src/lib.rs:79–110` (`write_with`, floor-2004 comment), `docs/file-format-parity.md` FF3 row + "Other formats" DWT row | implemented |
+| 9 | DWG read via acadrust 0.6.4 bridge (magic `AC10xx` = R13+; 2000–2018 in `VERSIONS`; R13/R14 untested; DGN line-style leftovers skipped on read) | `crates/dwg/src/lib.rs:12–20`, `crates/dwg/Cargo.toml:13`, `docs/file-format-parity.md` DWG table, FF row "#1482" | partial (synthetic tests only) |
+| 10 | DXF round-trips unmodelled content raw since #528; DWG still drops custom-class entities/objects, xdata on table records/blocks, entity colour books, reactors; SAVE/SAVEAS report it (`notSaved` + message) | `docs/gaps.md` rows 1–2, FF1; `docs/file-format-parity.md` "Foreign xdata…" row; `crates/engine/src/cmd/file.rs:491–515` (`not_saved_as`, `drops_unknown`, `report_not_saved`) | implemented (reporting); DWG loss is the open gap |
+| 11 | Export SVG/PNG/PDF (embedded TrueType subsets, OCG layers, multi-sheet, hyperlinks, plotted transparency); EXPORT/EXPORTPDF/PUBLISH/PDFBOOK; `preview` (Plot Preview) | `crates/io/src/lib.rs:113–135`, `crates/engine/src/cmd/exchange.rs:30–67` (`import`, `export`, `preview`, `publish`, `pdfbook` specs), `docs/file-format-parity.md` PDF row (#567/#571) | implemented |
+| 12 | SVG/SVGZ import (shapes, paths, groups, Inkscape layers; no CSS/`use`/fills/text/images; omissions named on open) | `crates/io/src/svg_read.rs`, `docs/gaps.md` FF14 | partial |
+| 13 | AutoLISP: `.lsp`, APPLOAD/`(load)`/`lisp`/`appload` JSON, `defun c:`, startup files + `S::STARTUP`/`autoload`, `entget/entmake/entmod`, `ssget` filters, `vl-*` functions; no vlax/vla, DCL, reactors | `docs/autolisp.md` (full function list), `crates/engine/src/cmd/lisp.rs:12,18`, `docs/gaps.md` E1 | partial |
+| 14 | Block Editor (BEDIT/BSAVE/BCLOSE) for static blocks; REFEDIT/REFSET/REFCLOSE edit block references in place (not xrefs); XCLIP missing; dynamic-block references read with visibility/lookup edits, no authoring | `crates/engine/src/cmd/blocks/bedit.rs:16`, `crates/engine/src/cmd/blocks/refedit.rs:35`, `docs/gaps.md` F2, F3 (both narrowed for these landings) | partial |
+| 15 | Precision incl. object snap tracking, extension/parallel snaps, typed overrides, FROM/M2P/TK (newer `docs/gaps.md`/revision log supersede the stale `docs/roadmap.md` prose that calls them toggles) | `crates/engine/src/snap/tracking.rs`, `crates/engine/src/pointmod.rs:80,325`, `crates/engine/src/cmd/settings.rs:45` (`otrack` F11), `docs/gaps.md` revision 2026-10-11 (#379) | implemented (U4 leftovers remain) |
+| 16 | Express Tools NCOPY/BREAKLINE/TXT2MTXT/BURST/MOCORO; ALIASEDIT/REINIT `.pgp`; SCRIPT reads `.scr`; COMPARE + QuickCalc | `crates/engine/src/cmd/modify2.rs:61,65`, `cmd/draw2/breakline.rs:21`, `cmd/txt2mtxt.rs:20`, `cmd/blocks/burst.rs:14`, `cmd/file/pgp.rs:195,200`, `cmd/file.rs:178` (`script`), `cmd/file/compare.rs:63–73`, `docs/gaps.md` E3, E5 | implemented |
+| 17 | Plot styles (CTB/STB) and plotter devices in CADCraft's own JSON; binary `.ctb/.stb/.pc3/.pmp` unread; no system printers | `docs/plot-styles.md`, `docs/plotters.md`, `docs/gaps.md` F14, FF9, H3 | partial |
+| 18 | 16 interface languages incl. Hungarian, Turkish, Greek; `ui.language` values; engine/CLI/MCP messages stay English; fonts must be installed for CJK/Arabic/Hangul | `crates/ui-egui/src/i18n/mod.rs:176–213` (catalog list), `docs/localization.md` (supported values incl. `tr`, `el`), `docs/gaps.md` L1 | partial |
+| 19 | No 3D; `3DORBIT`/`ATTACH`/`SHARE` return "not available yet"; no PDF import/underlays, no raster display, no DWF/DGN/WMF/EPS/ACIS/STL/DWS | `docs/gaps.md` F24, FF10, FF11, `crates/engine/src/cmd/exchange.rs:55–70`, `docs/file-format-parity.md` "Other formats" | claimed/absent (explicitly unavailable) |
+| 20 | Keyboard shortcuts exactly as listed (Cmd+N/O/S/Shift+S/W/P, Cmd+Z/Shift+Z, Cmd+C/V/X, Cmd+Shift+C/V, Cmd+A, Cmd+Shift+A PICKSTYLE, Delete, F3/F5/F7/F8/F9/F10/F11/F12; UI: Cmd+1/3/8/9, F1, F2, Cmd+Q) | `crates/engine/src/cmd/settings.rs:15–95`, `cmd/edit.rs:15–59`, `cmd/file.rs:153–175`, `cmd/layout.rs:81`, `cmd/groups/pick.rs:16`, `crates/ui-egui/src/menus.rs:17–80` (UI_COMMANDS) | implemented |
+| 21 | macOS packaging: `.app` holds only the GUI binary; CLI is a separate signed/notarized zip | `packaging/macos/package.sh:100–113` (`cp "$WORK/bin/cadcraft" "$APP/Contents/MacOS/CADCraft"` only; `CLI_ZIP` at :44), `README.md` Downloads | implemented |
+| 22 | Never-crash discipline: panic guard around commands; input-sized allocation caps | `crates/engine/src/guard.rs`, `docs/architecture.md` "Safety", crate-level `#![deny(...)]` headers | implemented |
+| 23 | Desktop autosave `.sv$` DXF + Drawing Recovery + AUDIT/RECOVER + AUDITCTL `.adt` log; none in the web build | `crates/engine/src/autosave.rs:24–25` (`EXT: "sv$"`), `crates/engine/src/cmd/audit.rs:143–146` (`with_extension("adt")`), `docs/gaps.md` F4 | implemented (desktop only) |
+| 24 | `drawing.inspect` `skipped` count; refused command lines still reply `ok:true` with `error` | `crates/engine/src/cmd/inquiry.rs:408`, `docs/control-protocol.md` "Command-line replies" | implemented |
+| 25 | Web build: same UI, no DWG, no autosave, `?webgl`/`?cpu`/`?sample`, `?host=parent` iframe bridge; plot-raw-PDF-bytes bug (#134) reported not reproduced | `apps/cadcraft-web/src/main.rs:4–9,90–130`, `docs/gaps.md` P1, S4 | partial |
+| 26 | Finder `.dxf` association broken (#158); no PR test CI (S1); 10 MB DWG ~2 min (#57); SETVAR ~150 of ~1,000 vars (U10) | `docs/gaps.md` P3/U13, S1, FF6, U10 | claimed/absent (documented gaps) |
 
 ## Spot-check notes / uncertainties
 
-- The SKILL's command/F-key shortcuts were taken from `CommandSpec.key(...)` values, not from a UI
-  screenshot — the app was not launched, per the brief.
-- `docs/architecture.md` says "295 engine commands … plus about 30 UI-only" (counted 2026-10-10);
-  the newer generated checklist says **409 registered commands** (2026-10-12). The skill quotes the
-  newer number and points at `cadcraft-cli commands` / `engine.commands` as the authoritative live
-  source.
-- `ROADMAP.md` (2026-10-10) is slightly behind `docs/gaps.md` (2026-10-13); where they disagree the
-  skill prefers `docs/gaps.md` (e.g. block editor and autosave listed as "upcoming" in ROADMAP but
-  landed per gaps rows F3/F4).
-- Web-build defect "plot shows raw PDF bytes" (#134) is from `docs/gaps.md` S4/P1 and was not
-  reproduced (no run); treat as reported-not-verified.
-- No claim in the SKILL depends on the installed bundle beyond the version match (0.8.0) and the
-  absence of a bundled CLI (`Contents/MacOS/` lists only `CADCraft`).
+- Numbers recomputed for this pin: **427 commands** and **283/491 (58%)** from the generated
+  parity checklist (2026-10-15/16); the old skill's 409 / 280/491 (57%) are superseded. `ROADMAP.md`
+  still shows the older 245/491 (50%) from 2026-10-10 — the generated checklist is newer and is
+  the one quoted.
+- `docs/architecture.md`'s line counts (~57k) and command count (295) date from 2026-10-10 and are
+  stale; the skill quotes the 2026-10-22 `wc -l` recount and the generated checklist instead.
+- `docs/roadmap.md` (updated 2026-10-12) still says object snap tracking/extension/parallel are
+  "toggles with no behaviour"; `docs/gaps.md`'s 2026-10-11 revision (#379) and the code
+  (`snap/tracking.rs`, `pointmod.rs`) show they landed. The skill follows `docs/gaps.md` + code.
+- `docs/control-protocol.md`'s `ui.language` value list omits `tr`/`el`; `docs/localization.md`
+  (newer) and `crates/ui-egui/src/i18n/mod.rs` include them — the skill follows those.
+- Uncertain (static reading only, no run): README's interactive-feel claims, "every arrowhead",
+  associative-dimension behaviour, MTEXT bidi/OpenType shaping, per-language font availability,
+  web plot-raw-PDF-bytes (#134), Windows/Linux robustness. All are labeled claimed-but-unverified
+  in the SKILL.
+- No claim in the SKILL depends on the installed bundle beyond the released CLI version string;
+  the bundle was not opened and the stale Info.plist version was not used.

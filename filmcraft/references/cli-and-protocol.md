@@ -1,11 +1,11 @@
 # FilmCraft CLI, control channel and MCP — reference
 
-Everything below is transcribed from the v0.9.0 source at commit `4a69a038…`. Nothing here is invented; where a
-value comes from a doc rather than code, the path is given.
+Everything below is transcribed from the v0.10.0 source at commit `cdf43fd…`. Nothing here is invented; where a
+value comes from a doc rather than code, the path is given. Changes since v0.9.0 are marked.
 
 ## 1. `filmcraft-cli`
 
-Source of truth for the flags: the `HELP` const in `apps/filmcraft-cli/src/main.rs:53-121`. Parser:
+Source of truth for the flags: the `HELP` const in `apps/filmcraft-cli/src/main.rs:63-140`. Parser:
 `apps/filmcraft-cli/src/args.rs` (options may appear anywhere; `--` ends options; `-V` in the subcommand
 position is a version query).
 
@@ -43,24 +43,30 @@ OPTIONS
 
 Notes:
 
-- Export formats accepted by `--format`: `h264|hevc|prores|dnxhr|apv|mjpeg|mxf-op1a|mxf-opatom|png|tiff|bmp|jpg|tga|dpx|exr|gif|wav|aiff|aac|flac`.
+- Export formats accepted by `--format` resolve through `Format::from_name`
+  (`crates/export/src/lib.rs`): `h264|hevc|prores|dnxhr|apv|mjpeg|mxf-op1a|mxf-opatom|png|tiff|bmp|jpg|tga|dpx|exr|gif|wav|aiff|aac|flac`.
   Without `--format`, `--preset` wins; otherwise the format is guessed from the output extension
-  (`mp4|m4v`→h264, `mov`→prores, `mxf`→mxf-op1a, `png`, `gif`, `wav`, `tif|tiff`, `bmp`, `aif|aiff`, `m4a|aac`) —
-  `apps/filmcraft-cli/src/main.rs:204-219`. An unknown extension without `--format` is a usage error.
+  (`format_for`, `apps/filmcraft-cli/src/main.rs:204-216`: `mp4|m4v`→h264, `mov`→prores, `mxf`→mxf-op1a,
+  `png`, `gif`, `wav`, `tif|tiff`→tiff, `bmp`, `aif|aiff`→aiff, `m4a|aac`→aac). An unknown extension without
+  `--format` is a usage error. The `HELP` text abbreviates the format list — the enum is authoritative.
 - `--start`/`--end` imply `range: "custom"` and are forwarded as `startSeconds`/`endSeconds`.
-- `--no-audio` sets `audio: false`; `--queue` uses `export.queue.add` with `start: true` instead of a direct export.
+- `--no-audio` sets `audio: false`; `--queue` uses `export.queue.add` with `start: true`.
+- **New in 0.10.0:** dotted `key=value` params are capped at 64 nesting levels
+  (`apps/filmcraft-cli/src/args.rs:6,90`), and the numeric options `--seconds`/`--scale` must parse as finite
+  numbers — a typo is a usage error (exit 2), never a silent default (`apps/filmcraft-cli/src/main.rs:556-561`).
 - Exit status: `0` success; `1` a command failed, saving failed, or export/render drew offline media without
-  `--allow-offline`; `2` usage error. A closed stdout (`| head`) is not an error: the remaining work still runs
-  (`apps/filmcraft-cli/src/main.rs:123-141`, `:258-264`).
+  `--allow-offline`; `2` usage error. A closed stdout (`| head`) is not an error: the remaining work still runs.
 - `--bridge` refuses `--project`/`--demo` ("open projects there (exec file.open path=…)").
 - `render` is headless-only; with `--bridge` use the MCP `render_frame` tool or `exec ui.*` commands.
 - `mcp` accepts only `--bridge`, `--project`, `--demo`, `--data-dir`; any other option is a usage error.
 - `probe` needs `--image-sequence` to treat its argument as the first numbered still of a sequence.
+- `import` stores absolute paths without resolving symlinks (so a Windows `\\?\C:\…` never lands in the project,
+  #850 — test in `apps/filmcraft-cli/src/main.rs`).
 
 ## 2. Desktop control channel
 
 `filmcraft --control 9876` (or `FILMCRAFT_CONTROL_PORT=9876`) — loopback only, JSON object per line in,
-one JSON reply per line out. Full table: `docs/control-protocol.md:24-43`; transport
+one JSON reply per line out. Full table: `docs/control-protocol.md` (unchanged v0.9.0→v0.10.0); transport
 `apps/filmcraft/src/control_server.rs`; handlers `crates/ui-egui/src/control.rs`.
 
 | Method | Params | Notes |
@@ -82,9 +88,10 @@ one JSON reply per line out. Full table: `docs/control-protocol.md:24-43`; trans
 | `ui.focus` | `{}` / `{id}` | `{}` activates the OS window; `{id}` focuses a widget |
 | `perf.stats` | – | decode/playback/frames/monitor/ui/process counters (cumulative — diff two readings) |
 
-Rules of thumb (`docs/control-protocol.md:9-17`, `:54-75`):
+Rules of thumb (`docs/control-protocol.md`):
 
-- A line that is not a JSON object with a string `method` gets one error reply and the connection is closed.
+- A line that is not a JSON object with a string `method` gets one error reply and the connection is closed
+  (also for invalid UTF-8 and lines over 4 MiB — an HTTP request cannot smuggle a command in).
 - Max 16 concurrent connections; **no authentication** — enable the port only while you need it.
 - Started with `--control`, the app opens without activating itself and UI requests bring the window forward
   without making it key; only `ui.focus {}` activates it. `--control-input-only` (needs `--control`) ignores real
@@ -99,7 +106,7 @@ Rules of thumb (`docs/control-protocol.md:9-17`, `:54-75`):
 `--data-dir`. Bridge: `--bridge 127.0.0.1:9876` to the running app. `.mcp.json` in the repo registers both,
 pointing at `target/release/filmcraft-cli`.
 
-Tools (`crates/automation/src/server.rs:311-551`, `docs/agents.md:57-77`): `command_list`, `command_run`,
+Tools (`crates/automation/src/server.rs:317-560`, `docs/agents.md:57-77`): `command_list`, `command_run`,
 `command_batch`, `doc_inspect`, `render_preview`, `project_inspect`, `sequence_inspect`, `media_import`,
 `render_frame`, `ui_inspect`, `ui_elements`, `ui_click`, `ui_drag`, `ui_key`, `ui_type`, `ui_screenshot`,
 `ui_control`. Resources: `filmcraft://document`, `filmcraft://commands` (both `application/json`).
@@ -109,13 +116,20 @@ Behaviour worth relying on:
 - Every tool carries `title` + `readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWorldHint`.
 - Unknown tool arguments are `-32602` errors naming the accepted ones; unknown lines are `-32700` and the
   server keeps serving; a panicking command is reported as `internal error: …` and the session stays usable.
-- `command_run {"id": "file.exportMedia", "params": {…, "wait": true}}` blocks through progress/cancellation:
-  `notifications/progress` with a `_meta.progressToken`, `notifications/cancelled` stops the encode and deletes
-  the partial output. Without `wait` it returns `{job, path}` immediately — poll `jobs.list`, stop with
-  `jobs.cancel`. `offlineMedia` and `etaSeconds` are reported on jobs and queue items.
+- **New in 0.10.0:** `doc_inspect` pins `sequence.inspect` to the `activeSequence` id that `project.inspect`
+  just reported, so the pair stays consistent even if the app's own UI (or another client) switches sequence
+  tabs between the two calls (#1477 — `crates/automation/src/server.rs:288-298`). The active id is read as a
+  u64, so ids above `i64::MAX` still resolve.
+- **New in 0.10.0:** `command_run {"id": "file.exportMedia", "params": {…, "wait": true}}` blocks through
+  progress/cancellation (`notifications/progress` with a `_meta.progressToken`, `notifications/cancelled`
+  stops the encode and deletes partial output). Without `wait` it returns `{job, path,
+  poll: "jobs.list", cancel: "jobs.cancel"}` — poll `jobs.list` for `progress`, `etaSeconds`, `finished`,
+  `result`; stop with `jobs.cancel`. **`export.queue.list` lists the Export Queue only**, not direct exports
+  (#1544) — `crates/engine/src/export_tools.rs:549-556`, `docs/agents.md:123-129`. `offlineMedia` and
+  `etaSeconds` are reported on jobs and queue items.
 - Headless MCP is **not** confined to a folder; any option other than the four above is rejected (exit 2).
 
-Typical agent loop (`docs/agents.md:79-80`): `project_inspect` / `sequence_inspect` → ids → `command_run` →
+Typical agent loop (`docs/agents.md`): `project_inspect` / `sequence_inspect` → ids → `command_run` →
 `render_frame` or `ui_screenshot` → inspect → `edit.undo` if wrong.
 
 ## 4. Commands worth memorising
@@ -127,9 +141,9 @@ Project/media: `file.newProject`, `file.newSequence`, `file.import`, `file.impor
 `project.ingestSettings`.
 
 Editing: `source.insert`, `source.overwrite`, `sequence.lift`, `sequence.extract`, `sequence.addEdit`,
-`timeline.move`, `timeline.razor`, `timeline.place`, `edit.undo`, `edit.redo`, `edit.pasteInsert`,
-`trim.selectEditPoint`, `trim.shuttle`, `trim.tick`, `trim.shuttleStop`, `clip.replaceFromBin`,
-`clip.audioGain`, `markers.*`, `markers.exportCsv`.
+`timeline.move`, `timeline.razor`, `timeline.place`, `timeline.setTrack` (now takes `label` — track colour),
+`edit.undo`, `edit.redo`, `edit.pasteInsert`, `trim.selectEditPoint`, `trim.shuttle`, `trim.tick`,
+`trim.shuttleStop`, `clip.replaceFromBin`, `clip.audioGain`, `markers.*`, `markers.exportCsv`.
 
 Look/audio/text: `effects.list`, `effects.apply`, `effects.setParam`, `lumetri.setInputLut`,
 `lumetri.setLook`, `lumetri.setSection`, `lut.import`, `mixer.*`, `clipMixer.set`, `essentialSound.*`,
@@ -140,9 +154,9 @@ Output: `file.exportMedia`, `file.exportFrame`, `export.queue.add/start/list/sto
 `perf.stats`, `file.exportEdl`, `file.exportFcp7Xml`, `file.exportFcpxml`, `file.exportOtio`,
 `file.exportAaf`, `file.exportOmf`, `file.exportAle`, `file.importAaf`.
 
-UI/app: `tool.*`, `playback.*`, `view.*`, `window.workspace.*`, `window.panel.*`, `window.dockPanel`,
-`window.floatPanel`, `window.dockAction`, `app.settings.<category>`, `prefs.get`/`prefs.set`/`prefs.reset`/
-`prefs.schema`, `shortcuts.*`, `command.list`.
+UI/app: `tool.*`, `playback.*`, `view.*` (incl. `view.resetInterfaceZoom`, new), `window.workspace.*`,
+`window.panel.*`, `window.dockPanel`, `window.floatPanel`, `window.dockAction`, `app.settings.<category>`,
+`prefs.get`/`prefs.set`/`prefs.reset`/`prefs.schema`, `shortcuts.*`, `command.list`.
 
 `file.exportMedia` parameters (from the registry, `crates/engine/src/commands.rs:1599-1607`):
 `path` (required), `preset`, `settings` (ExportSettings JSON), `format`, `audioCodec: auto|aac|pcm|flac`,
@@ -154,7 +168,7 @@ UI/app: `tool.*`, `playback.*`, `view.*`, `window.workspace.*`, `window.panel.*`
 ## 5. Building (developers)
 
 ```sh
-cargo build --release -p filmcraft -p filmcraft-cli   # app + CLI (packaging/macos/package.sh:61)
+cargo build --release -p filmcraft -p filmcraft-cli   # app + CLI (packaging/macos/package.sh)
 cargo run --release -p filmcraft -- --control 9876
 cargo xtask ci        # fmt, lints, tests, layering, asset attribution, wasm check
 cargo xtask web       # WebAssembly site into target/web/dist
@@ -162,5 +176,5 @@ cargo xtask parity    # menu/effects parity against a local plan/premiere refere
 ```
 
 `CRAFT_FONTS_DIR=<craft-fonts checkout>` adds the shared font set (optional; official releases embed it —
-`packaging/macos/package.sh`, `docs/web.md`). Release builds pass no `--features`, so `whisper` and
+`packaging/macos/package.sh`, README "Get started"). Release builds pass no `--features`, so `whisper` and
 `neural-voices` are **off** in shipped binaries.
