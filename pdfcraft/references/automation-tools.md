@@ -1,16 +1,15 @@
 # PdfCraft automation tool table (names and titles)
 
-
-Generated from `crates/automation/src/tools.rs` at commit
-`3e3064532f04fd6ec769c6bd7b2c97464757970e` (tag `v0.11.0`). 171 tools.
-
+Generated from `crates/automation/src/tools.rs` at tag `v0.12.0`, commit
+`39844f06b58bc96bae72d3fb56faaa3b6201c945`. **175 tools**: four more than the
+v0.11.0 skill's 171 (`form_add_field_table`, `form_calculation_order`, `layer_set`,
+`standards_remove_id`); none removed or renamed.
 
 Do not treat this file as a capability contract for a different version: run
 `pdfcraft-cli tools` on the installed binary for the live list with full JSON Schemas,
 descriptions and read-only/destructive flags. Tool names are `snake_case`; MCP rejects dots.
 Command ids (e.g. `page.rotate`) map to tools via `ToolDef::command`; `command_list` reports the
 mapping. See `../SKILL.md` for how to call them (`pdfcraft-cli run`, JSON scripts, MCP).
-
 
 | Tool | Title |
 |---|---|
@@ -50,10 +49,12 @@ mapping. See `../SKILL.md` for how to call them (`pdfcraft-cli run`, JSON script
 | `form_fill` | Fill in form fields |
 | `form_reset` | Clear form |
 | `form_add_field` | Prepare form: add a field |
+| `form_add_field_table` | Prepare form: add a table of text fields |
 | `stamp_custom` | Add a custom stamp |
 | `form_set_image` | Set an image field's picture |
 | `form_set_props` | Field properties |
 | `form_tab_order` | Set the tab order |
+| `form_calculation_order` | Read or set the calculation order |
 | `doc_export_data` | Export comments or form data |
 | `doc_import_data` | Import comments or form data |
 | `form_delete_field` | Delete a field |
@@ -98,6 +99,7 @@ mapping. See `../SKILL.md` for how to call them (`pdfcraft-cli run`, JSON script
 | `sign_trust` | Trust certificates |
 | `comment_mark` | Mark a comment with a checkmark |
 | `comment_lock` | Lock a comment |
+| `layer_set` | Show or hide a layer |
 | `comments_hide` | Hide all comments |
 | `view_reading_colors` | Set reading colours |
 | `comments_summarize` | Summarize comments |
@@ -142,6 +144,7 @@ mapping. See `../SKILL.md` for how to call them (`pdfcraft-cli run`, JSON script
 | `pdfa_verify` | Verify PDF/A |
 | `print_readiness` | Print readiness |
 | `pdfa_convert` | Save as PDF/A |
+| `standards_remove_id` | Remove PDF/A or PDF/X identification |
 | `action_list` | List actions |
 | `action_run` | Run an action |
 | `doc_compare` | Compare files |

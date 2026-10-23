@@ -2,20 +2,20 @@
 
 All paths are repo-relative to https://github.com/storytold/designcraft.
 
-Verified at tag v0.11.0, commit `4d62a501c18fb3cf453c6e9f19f15cbc9c558e26`, 2026-10-22.
+Verified at tag v0.12.0, commit `5e8ef678321cfdd2d18927e2af94d58e5f9d8836`, 2026-10-23.
+Installed `/Applications/DesignCraft.app` reports `0.12.0` and the same build commit.
 
 ## 1. CLI (`designcraft-cli`)
 
-Source: `apps/designcraft-cli/src/main.rs` (module doc lines 3–20; the `USAGE` const at line 42;
-subcommand dispatch in `main`). Not inside the macOS `.app` — install the separate
-`designcraft-cli-<ver>-macos-*.zip` release asset, `cargo install --path apps/designcraft-cli
---locked` (`docs/mcp.md` §From source), or build `cargo build --release -p designcraft-cli`
-(`docs/mcp.md`; `packaging/macos/package.sh`).
+Source: `apps/designcraft-cli/src/main.rs` (module doc; the `USAGE` const; subcommand dispatch in
+`main`). Not inside the macOS `.app` — install the separate
+`designcraft-cli-<ver>-macos-<arch>.zip` release asset, `cargo install --path apps/designcraft-cli
+--locked` (`docs/mcp.md` §From source), or build `cargo build --release -p designcraft-cli`.
 
 ```text
 designcraft-cli run [--in FILE | --sample] [--cmd ID[=JSON]]... [--page N] [--scale S]
                     [--pdf-options JSON] [--export OUT] [--all-pages DIR]
-designcraft-cli commands [FILTER]        # all commands as JSON
+designcraft-cli commands [FILTER]        # engine commands as JSON
 designcraft-cli describe COMMAND         # label, menu, shortcut, params for one command
 designcraft-cli script [FILE|-] [--in FILE | --sample] [--connect PORT]
                        [--save OUT] [--export OUT] [--keep-going]
@@ -48,10 +48,16 @@ designcraft-cli --version
 - Exit status is non-zero on failure; `script --keep-going` records errors per step instead.
 - `perf`/`bench` measure budgets on a synthetic stress document or a real file
   (`apps/designcraft-cli/src/perf.rs`).
+- **Unknown parameter keys**: `run --cmd`, `script` steps (through the backend), MCP and the control
+  channel reject a key the command's params description doesn't name (`crates/engine/src/cmd/
+  params.rs`, `check_params`; `apps/designcraft-cli/src/main.rs`; `crates/ui-egui/src/control.rs`).
+  `Session::execute` itself only checks in `#[cfg(test)]` builds, so the in-app Scripts panel is the
+  one path that may ignore an unknown key. `docs/agents.md`'s "most commands ignore parameters they
+  don't know" is stale for the CLI/MCP/control path.
 
-## 2. Script syntax (`designcraft-cli script`)
+## 2. Script syntax (`designcraft-cli script`, `script.run`, MCP `batch`)
 
-Source: `apps/designcraft-cli/src/main.rs` `SCRIPT_HELP` (lines 45–75); `crates/engine/src/script.rs`;
+Source: `apps/designcraft-cli/src/main.rs` `SCRIPT_HELP`; `crates/engine/src/script.rs`;
 `docs/agents.md`.
 
 ```text
@@ -60,84 +66,77 @@ command.id {"param": 1}            # one step per line; also command.id={json} o
 # comment / // comment             # blank lines skipped; UTF-8 ± BOM; LF or CRLF
 ```
 
-- `"$N.path"` = value at `path` of step N's result (0-based; comments/blank lines are not
-  steps); `"$last.path"` = previous step; `"${N.path}"` interpolates inside a longer string;
-  `"$$"` writes a literal `$`; any other string starting with `$` stays as written (GREP groups
-  like `"$1-$2"`, `"$$1"`).
+- `"$N.path"` = value at `path` of step N's result (0-based; comments/blank lines are not steps);
+  `"$last.path"` = previous step; `"${N.path}"` interpolates inside a longer string; `"$$"` writes a
+  literal `$`; any other string starting with `$` stays as written.
 - Text parameters: `\n` = new paragraph, `\u2028` = forced line break (`\u000b`, Word's line
   break, is read as one too), `\t` = tab.
 - Result: `{"completed": n, "results": [...]}`, plus `failedIndex`/`failedCommand`/`error` on
   failure; `--keep-going` converts failures to `{"error": …, "command": …}` results.
-- MCP `batch` accepts the same script text or `commands: [{command, params}]`.
 - `script.run` (the Scripts panel) runs the same text as one undo step and restores the document,
-  selection and history when a step fails, so a half-run script never sticks
-  (`crates/engine/src/cmd/scripts.rs`).
+  selection and history when a step fails (`crates/engine/src/cmd/scripts.rs`).
 
-## 3. MCP tools (`designcraft-cli mcp`)
+## 3. MCP tools (`designcraft-cli mcp`) — 26, unchanged at v0.12
 
 Source: `crates/mcp` (`tools.rs` — `tool_definitions` :83, `dispatch` :555; `server.rs`, `headless.rs`,
 `backend.rs`); `docs/mcp.md`.
 Protocol: newline-delimited JSON-RPC 2.0 on stdin/stdout (`2025-06-18`, also `2025-03-26`,
 `2024-11-05`); logs on stderr. An argument a tool doesn't take, and a command `params` key the
-command doesn't name, are invalid-params errors; `execute` and `batch` check every step
-before the first runs.
+command doesn't name, are invalid-params errors; `execute` and `batch` check every step before the
+first runs.
+
+| Group | Tools |
+|---|---|
+| commands (3) | `list_commands` (filter, enabledOnly; returns `{count, commands}`), `execute`, `batch` |
+| document (7) | `inspect_document`, `get_story`, `set_story_text`, `new_document`, `open_document`, `save_document`, `place_image` |
+| render (3) | `render_page`, `export_png`, `screenshot` |
+| input (5) | `select_tool`, `pointer`, `key`, `type_text`, `ime` |
+| window (8) | `click`, `drag`, `menu_list`, `ui_inspect`, `ui_set`, `dialog_set`, `dialog_confirm`, `dialog_cancel` |
 
 - Headless: in-process `designcraft_engine::Session`, starts with an empty Letter document;
   `--sample` opens the sample magazine. `--automation-read-root`/`--automation-write-root` confine
-  file access (in-process only; see §1).
+  file access (in-process only).
 - Connected: `--connect PORT` (or `HOST:PORT`) proxies to the running app; window tools
   (`screenshot`, `click`, `drag`, `menu_list`, `ui_inspect`, `ui_set`, `dialog_*`) return an
-  error in headless mode (`docs/mcp.md` "Modes"). A failed request is not resent: inspect the
-  document before retrying (`docs/mcp.md`).
-
-| Tool | Purpose |
-|---|---|
-| `list_commands` | every command (id, label, menu, shortcut, params, enabled), with `filter` / `enabledOnly` |
-| `execute` | run any command `{command, params}` |
-| `batch` | ordered commands or script text; stops at first error (`failedIndex`) |
-| `inspect_document` | pages, spreads, items, stories (overset), layers, styles, swatches, selection |
-| `get_story` / `set_story_text` | read a story (text, frames, paragraphs, lines, overset) / replace its text |
-| `new_document` | `file.new` presets or `sample: true` |
-| `open_document` / `save_document` | native `.designcraft` files |
-| `place_image` | image from path or base64 into a frame or a new one |
-| `render_page` / `export_png` | page → image content / file (JPEG by extension) |
-| `screenshot` | whole window (connected only) |
-| `select_tool`, `pointer`, `key`, `type_text`, `ime` | tools and input events (`pointer` events: `down`/`drag`/`up`/`move`/`doubleclick`, `space: doc\|screen`, per-event `mods`/`clicks`; `ime` preedit/commit) |
-| `click`, `drag`, `menu_list`, `ui_inspect`, `ui_set`, `dialog_set/confirm/cancel` | connected only |
-
-Resources: `designcraft://document`, `designcraft://commands` (`docs/mcp.md`). `app.links` returns
-the community links; `help.about {tab?}` opens the About window in the running app.
+  error in headless mode, and UI-only commands (`view.*`, `window.*`, `help.*`,
+  `edit.dynamicSpelling`, `app.*` except `app.links`) error too (`docs/mcp.md` "Modes"). This is
+  how `window.importShortcuts` can be reached from MCP.
+- Connected `list_commands` returns engine **and** UI commands (UI entries carry `"ui": true`);
+  headless `list_commands` returns engine commands only.
+- Resources: `designcraft://document`, `designcraft://commands`. `app.links` works everywhere;
+  `help.about {tab?}` opens the About window in the running app.
 
 ## 4. Control channel (`designcraft --control PORT`)
 
-Source: `apps/designcraft/src/control_server.rs` (`MAX_LINE` :22 = 4 MiB, `MAX_CONNECTIONS` :24 = 16);
+Source: `apps/designcraft/src/control_server.rs` (`MAX_LINE` = 4 MiB, `MAX_CONNECTIONS` = 16);
 `crates/ui-egui/src/control.rs` (`handle_request` :149); `docs/control-protocol.md`. Start with
 `designcraft --control PORT` or `DESIGNCRAFT_CONTROL_PORT`. JSON lines on `127.0.0.1`; one
 request/one reply per line (the reply echoes the request's `id`).
+
 Rules that matter: only requests are read; a line that is not a JSON object with a string `method`
 gets one error reply and the connection is closed, so anything after it on that connection never
-runs; max 16 connections (further ones get an error line); lines are capped at 4 MiB; no
-authentication (enable only while in use); the web build has no control channel. Clients that get
-an error reply should reconnect (`docs/control-protocol.md`).
+runs; max 16 connections; lines are capped at 4 MiB; no authentication (enable only while in use);
+the web build has no control channel. Clients that get an error reply should reconnect
+(`docs/control-protocol.md`).
 
 | Method | Params / purpose |
 |---|---|
 | `engine.execute` / `ui.menu.invoke` | `{command, params}`; `ui.menu.invoke` without params acts like choosing the menu item (opens dialogs); an unknown params key is an error |
-| `engine.commands` | full command list |
-| `document.inspect` | pages, spreads, items, stories (overset), styles, swatches, selection, `canUndo` |
+| `engine.commands` | every engine command plus UI commands (`"ui": true`) in the running app |
+| `document.inspect` | pages (incl. `gutter`, `customColumns`, `columnRects`), spreads, items, stories (overset), styles, swatches, selection (incl. `guides`), `canUndo` |
 | `ui.inspect` | tool, UI state, view, canvas rect, window, documents, dialog, perf |
-| `ui.menu.list` / `ui.tool.list` / `ui.tool.select` | menus / tools |
+| `ui.menu.list` / `ui.tool.list` / `ui.tool.select` | menus / tools / select a tool |
 | `ui.pointer` | `{events:[{kind: down\|drag\|up\|move\|doubleclick, x, y, space? ("screen"\|"canvas"; default doc points), clicks?, mods?}], mods?}` through the active tool; returns selection, tool, cursor |
 | `ui.key` / `ui.text` | `{key, shift?, alt?, cmd?, ctrl?}` synthetic key / `{text}` inserts at the explicit caret, or types into a focused field or dialog |
-| `ui.ime` | `{preedit?, active?: [start, end], commit?}` input-method events as the system IME sends them (marked text in place, then the committed text) |
+| `ui.ime` | `{preedit?, active?: [start, end], commit?}` input-method events as the system IME sends them |
 | `ui.paste` | `{text}`: what Ctrl/Cmd+V delivers (text, or SVG markup as editable paths); the system clipboard is never read |
 | `ui.move` / `ui.click` / `ui.drag` | real egui pointer input in screen points (reaches widgets/menus/dialogs); `button?`, `count?` (1–255), `steps?` (drag, default 8) |
-| `ui.set` | brightness, panel, status, rulers, guides, frameEdges, baselineGrid, documentGrid, textThreads, screenMode, zoom, page (1-based), fit, controlBar, closePanel, dockExpanded |
+| `ui.set` | `brightness`, `panel`, `status`, `rulers`, `frameEdges`, `guides`, `baselineGrid`, `documentGrid`, `textThreads`, `screenMode`, `zoom`, `page` (1-based), `fit`, `controlBar`, `closePanel`, `dockExpanded` |
 | `ui.dialog.open` / `.set` / `.confirm` / `.cancel` | open a dialog by id (`{id, fields?}`) and fill/close it |
 | `ui.resize` / `ui.focus` | window size / focus |
 | `ui.screenshot` / `ui.render` | window PNG / headless page render (page 0-based, scale, bleed; PNG, or base64 without a path) |
 | `app.open` / `app.save` / `app.export` | files (export = PNG of a page) |
-| `app.quit` | quits without asking; the ⌘Q command asks |
+| `app.quit` | quits **without** asking about unsaved changes (the `app.quit` command / ⌘Q asks) |
 
 Notes: default shortcuts owned by the macOS native menu (incl. Command-Z) are skipped by the
 egui shortcut handler; after a drag wait for both the expected document state and
@@ -155,9 +154,8 @@ before?}`, `window.panel.activate {panel}`, `window.panel.close {panel}`, and
 
 Headless window screenshots with no visible window:
 `cargo run -p designcraft-ui-egui --example ui_shot -- script.jsonl`
-(`crates/ui-egui/examples/ui_shot.rs`; documented in `docs/control-protocol.md`): each line is a
-control request, `{"shot": "out.png"}` or `{"steps": n}`; a first line `{"empty": true}` skips the
-sample document.
+(`crates/ui-egui/examples/ui_shot.rs`): each line is a control request, `{"shot": "out.png"}` or
+`{"steps": n}`; a first line `{"empty": true}` skips the sample document.
 
 ## 5. Coordinates and text offsets
 
@@ -165,12 +163,97 @@ sample document.
   0-based; commands that create items take `spread` (body index,
   `{"kind":"parent","index":0}`, or `{"kind":"doc","index":n}`) (`docs/mcp.md`). `pointer`
   events may use `"space": "screen"` (egui points, see `ui_inspect` → `canvasRect`).
+- `guide.*` and `layout.moveColumnGuide` take `page` as the page's index **within its spread**;
+  `document.inspect` page `index` is absolute and each spread lists its own `pages` array — map
+  between them by position.
 - Story text positions are UTF-8 byte offsets (é = 2 bytes; — and は = 3): `anchor`/`focus`,
   `start`/`end`, `pos`, story `length`, overset position; an offset inside a character snaps to
   its start — except in `story.replaceRange`, where it, an `end` past the story, or a crossed
   range is an error that leaves the story unchanged (`docs/mcp.md` "Text offsets").
 
-## 6. Sample commands that create content
+## 6. Guides and custom column guides (v0.12)
+
+### Ruler guides
+
+| Command | Params / result |
+|---|---|
+| `guide.add` | `{orientation: horizontal\|vertical\|both, position, point?: [x,y], spread?, page?, at?, spreadGuide?, liquid?}` → `{page, index}` or `{guides: [...]}` for `both` |
+| `guide.move` | `{spread?, page, index, position}` → null |
+| `guide.moveBy` | `{dx?, dy?, guides?: [{spread?, page, index}]}` (default: selected) → `{moved}` |
+| `guide.list` | `{spread?}` → `[{page, index, orientation, position, spread, selected}]` |
+| `guide.select` | `{page, index}` or `{guides: [...]}`, `add?`, `toggle?` → `{selected}` |
+| `guide.selectAll` | `{spread?}` (menu Edit, `Cmd+Alt+G`) → `{selected}`; skips locked/hidden layers |
+| `guide.deselect` | `{}` |
+| `guide.delete` | `{page, index}` or `{}` for the selection → `{deleted}` |
+| `guide.deleteAll` | `{spread?}` → `{deleted}` |
+| `layout.createGuides` | `{rows?, columns?, rowGutter?, columnGutter?, fitTo?: margins\|page, removeExisting?, spread?, page?}` |
+
+- Positions are spread coordinates and must be finite, within ±1,000,000 pt. At most 10,000 guides
+  per `guide.add`/`layout.createGuides`; rows/columns ≤ 1000.
+- Guides live on a page, on the active layer (`guide.add`). `spreadGuide: true` makes a guide cross
+  the pasteboard; `liquid: true` makes a Page-tool liquid guide (page guides only).
+- `view.lockGuides {on?: bool}` (UI command, `Cmd+Alt+;`) only blocks pointer dragging and persists
+  in `ui.json`; commands still move a guide unless the guide or its layer is locked/hidden
+  (`Guide::editable_in`, `crates/doc/src/page.rs`). Put guides on a layer and lock the layer to
+  protect them from commands.
+- Dragging snaps along the guide's axis to other guides, margins, columns, bleed, page and object
+  edges/centres, and the document grid; Shift snaps to ruler ticks, Cmd suspends snapping
+  (`crates/ui-egui/src/canvas.rs` `guide_spot`, `crates/tools/src/snap.rs` `Gesture::Guide`).
+- Selecting guides clears an item/text/cell selection, and vice versa (`Selection.guides`).
+
+### Column guides
+
+Column positions are stored per page (`Columns.positions`: 2 × count offsets from the margin box's
+left edge) and validated: finite, ascending, first 0, last margin width, ≤ 216 columns
+(`crates/doc/src/page.rs` `valid_column_positions`, `MAX_COLUMNS`).
+
+| Command | Params / result |
+|---|---|
+| `view.lockColumnGuides` | `{on?: bool}` (default: toggle) → `{locked}`; document setting, default **true**, saved in the document and IDML `ColumnGuideLocked` |
+| `layout.moveColumnGuide` | `{spread?, parent?, page, gutter, position}` → `{positions, left}`; refuses while column guides are locked |
+| `document.inspect` | each page has `columns` (count), `gutter`, `customColumns`, `columnRects` |
+| `layout.marginsAndColumns` | keeps custom positions unless `columns` or `gutter` changes; margin-width changes scale them |
+| `file.place {autoflow}`, `layout.pages.insert`, `layout.parents.new` | carry custom positions to new pages/parents; pages that cross the spine mirror them |
+
+- `gutter` 0 is the gutter between the first two columns. `position` is the new left edge of that
+  gutter in spread x. Both edges move together, keeping the gutter width, clamped to neighbouring
+  gutters/margins. The reply's `positions` are offsets from the margin-box left edge; `left` is in
+  spread x.
+- A parent's columns pass to the pages that follow it; `parent` names a parent by prefix, label or
+  index instead of `spread`.
+- IDML import reads `ColumnsPositions` (an even split is dropped; malformed sets fall back to the
+  even split) and export writes the current positions.
+
+## 7. Shortcut import (`window.importShortcuts`, v0.12)
+
+Source: `crates/ui-egui/src/shortcut_import.rs`; UI command entry in `crates/ui-egui/src/menus.rs`;
+`docs/file-format-parity.md` keyboard row.
+
+```text
+window.importShortcuts {path | text}
+  → {set, imported, changed, conflictsCleared, skipped, unmatched,
+     unmatchedWithoutShortcut, unreadable}
+```
+
+- Input is a set saved by InDesign's Keyboard Shortcuts ▸ **Show Set**: `.txt`, UTF-8 (BOM
+  accepted) or UTF-16 (BOM or zero-byte pattern), Windows (`Shift+Ctrl+S`) or Mac (`⇧⌘S`) key names,
+  at most 8 MiB. Lines are `<item> --- <context>: <keys>, <context>: <keys>` or
+  `[none defined]`; item names use `: ` between submenu levels.
+- Matching: menu path + label first, then engine menu placement, then a unique label. Only the
+  **Default** context applies; a type/text command with no Default entry takes its **Text** entry.
+  A matched command takes the set's shortcut (or loses its own when the set says `[none defined]`);
+  commands holding a key the set takes lose theirs and appear in `conflictsCleared`. When two items
+  want the same keys, the later one wins and the earlier is listed in `skipped` with `takenBy`.
+- `changed` lists `{id, label, item, from, to}`. `unmatched` lists `{item, keys, reason?}`; tool
+  items that cannot change are marked `reason: "tool keys are fixed"`.
+  `unreadable` lists unreadable key strings with a reason. `imported` counts applied decisions.
+- Limitations: no `.indk` files, no non-Default contexts, no Control-key chords (macOS Control is
+  not a command modifier here), no writing/exporting a set. It is a UI command: headless MCP errors;
+  use the connected app (`designcraft-cli app window.importShortcuts …` or MCP connected `execute`).
+- Reset everything with `window.resetShortcuts {}`; set one command with
+  `window.setShortcut {id, shortcut: "Cmd+Alt+J" | "" | null}` → `{shortcut, conflicts}`.
+
+## 8. Sample commands that create content
 
 | Command | Params (from the command registry) |
 |---|---|
@@ -190,8 +273,28 @@ sample document.
 | `color.settings` / `color.loadProfile` / `color.convert` | RGB/CMYK working spaces, intent, black-point compensation; ICC `.icc`/`.icm`; convert through the working spaces (`crates/engine/src/cmd/colorsettings.rs`) |
 | `data.source.select` → `data.merge` | link CSV/TSV/xlsx, then merge into a new document; the template is left unchanged and the old `spread` parameter is an error (`docs/agents.md`) |
 | `font.reload` | `{}` — re-read fonts installed, edited or removed while running; documents recompose (`crates/engine/src/cmd/fonts.rs`) |
-| `layout.parents.delete` | `{id}` — delete a parent page; overrides survive as plain objects, undo restores everything (`crates/engine/src/cmd/layout.rs`; `docs/agents.md`) |
+| `layout.parents.delete` | `{id}` — delete a parent page; overrides survive as plain objects, undo restores everything (`crates/engine/src/cmd/layout.rs`) |
+| `file.package` | `{dir, idml?: true, pdf?: false, instructions?}` → `{dir, files, report}`; package-relative `Links/` paths (`crates/engine/src/cmd/package.rs`) |
+| `file.close` | `{index?}` — closes **without asking** and discards recovery data; the UI's Close asks (`crates/engine/src/lib.rs` `close_document`) |
 
 Ground truth for params: `designcraft-cli describe <command-id>` — the `params` field is the
 command's own documentation string (`crates/engine/src/cmd/mod.rs` `CommandSpec.params`); the
 automation boundaries validate keys against it (`crates/engine/src/cmd/params.rs`).
+
+## 9. Live discovery and pitfalls
+
+- `designcraft-cli commands` lists the **527 engine commands** at this tag; it does not list the 166
+  UI commands. In a running app, `engine.commands` (control) / `list_commands` (MCP connected)
+  returns both, with UI entries marked `"ui": true`. `describe` works for engine commands.
+- Counts are code-derived: 527 unique `cmd!` registrations outside `#[cfg(test)]` across 61
+  `specs()` lists (v0.11.0: 521; added in v0.12.0: `guide.select`, `guide.selectAll`,
+  `guide.deselect`, `guide.moveBy`, `layout.moveColumnGuide`, `view.lockColumnGuides`), plus 166
+  `UI_COMMANDS` (v0.11.0: 164; added: `view.lockGuides`, `window.importShortcuts`). MCP remains 26.
+- UI-only commands (`view.*`, `window.*`, `help.*`, `edit.dynamicSpelling`, `app.*` except
+  `app.links`) work only in the desktop app; headless MCP errors. This includes
+  `window.importShortcuts`, `view.lockGuides`, `window.setShortcut` and panel docking.
+- `file.close` and control `app.quit` do not ask; the UI Close/Quit and the `app.quit` command do.
+  Save first when driving either from an agent.
+- A `.designcraft` package's `meta.json` version above 3 is refused. Prefer open → edit → save
+  through commands over hand-editing `document.json` and re-zipping.
+- The control channel has no authentication and only binds loopback; do not expose the port.

@@ -1,271 +1,129 @@
 ---
 name: pdfcraft
-description: PdfCraft is the ArtCraft PDF workbench, a clean-room Acrobat Pro reimplementation for macOS, Windows, Linux, FreeBSD and the web. Use this skill whenever the user mentions PdfCraft or pdfcraft-cli, asks what it can do, which file formats or shortcuts it supports, or asks to read, render, search, organize, combine, split, rotate, annotate, fill, sign, redact, OCR, compare, print, protect or convert a PDF; when preparing assets or inputs for it; when driving it headlessly through the CLI, MCP server or UI control channel; or when verifying or troubleshooting its output — even if the app is not named (for example "merge these PDFs", "fill this form", "redact this contract", "make this scan searchable", "convert this PDF to Word").
+description: PdfCraft is the ArtCraft PDF workbench, a clean-room Acrobat Pro reimplementation for macOS, Windows, Linux, FreeBSD and the web. Use this skill whenever the user mentions PdfCraft or pdfcraft-cli, asks what it can do, which file formats or shortcuts it supports, or asks to read, render, search, organize, combine, split, rotate, annotate, fill, calculate, sign, redact, OCR, compare, print, protect, layer, or convert a PDF; when preparing assets or inputs for it; when driving it headlessly through the CLI, MCP server or UI control channel; or when verifying, repairing or troubleshooting its output — even if the app is not named (for example "merge these PDFs", "fill this form", "fix this form's calculation order", "redact this contract", "make this scan searchable", "convert this PDF to Word").
 ---
 
-# PdfCraft
+Audit basis: this checkout is tag `v0.12.0`, commit `39844f06b58bc96bae72d3fb56faaa3b6201c945`. The installed `/Applications/PdfCraft.app` reports version `0.12.0` and its binary prints `pdfcraft 0.12.0`, so the bundle matches this source exactly. **Verify against your installed version** if the ArtCraft Launcher has auto-updated since. Deep detail: `references/automation-tools.md` lists all 175 automation tools at this tag.
 
 ## Overview
 
-PdfCraft is an open-source, pure-Rust PDF reader and editor ("The PDF workbench", `README.md`),
-built as a clean-room reimplementation with Adobe Acrobat Pro as the documented parity target
-(`docs/target-app-parity.md` §1; the README no longer names Acrobat, the parity docs do). It is at
-**alpha** (`ROADMAP.md:3`, `docs/roadmap.md` §Alpha gate) and runs natively on macOS, Windows,
-Linux and FreeBSD plus a WebAssembly shell (`apps/pdfcraft-web`, `docs/architecture.md` §Shape).
-Source: GitHub `storytold/pdfcraft`; this skill was verified against tag `v0.11.0`.
+PdfCraft is an open-source, pure-Rust PDF reader and editor ("The PDF workbench; an open-source, modern PDF reader and editor", `README.md`), built clean-room with Adobe Acrobat Pro as the documented parity target (`docs/target-app-parity.md`; `ROADMAP.md` names the Acrobat DC 26.002.21931 track). It is at **alpha** (`ROADMAP.md:3`) and runs on macOS, Windows, Linux and FreeBSD plus a WebAssembly shell (`apps/pdfcraft-web`, `docs/architecture.md` §Shape). Source: GitHub `storytold/pdfcraft`.
 
-The PDF object graph is the document model: there is no separate project file, so the `.pdf`
-**is** the project (`docs/architecture.md` §Data model and editing). Pages are currently drawn by
-the vendored `hayro` family while PdfCraft's own renderer is built (`docs/gaps.md` gap 2;
-`vendor/README.md`), so treat rendering fidelity as good-but-unmeasured rather than Acrobat-equal.
-The installed `/Applications/PdfCraft.app` reports 0.11.0 and build commit
-`3e3064532f04fd6ec769c6bd7b2c97464757970e`, identical to the inspected checkout
-(`Contents/Info.plist`, binary `--version`).
+The PDF object graph is the document model: there is no separate project file, so the `.pdf` **is** the project (`docs/architecture.md` §Data model and editing). Pages are drawn by the vendored `hayro` 0.7.x family while PdfCraft's own renderer is built (`docs/gaps.md` gap 2; `vendor/README.md`), so rendering is good but not Acrobat-measured. This tag adds form calculation order and text-field tables, a layer tool, gapless page display, PDF/A or PDF/X identification removal, print-permission enforcement, Compare Text/Visual filters, and 11 more interface languages.
 
 ## Capabilities (verified)
 
-Unless a bullet is marked **partial**, the code path is wired into the UI/CLI and was verified at
-this tag; the limitations section explains every partial. If your installed version differs, run
-`/Applications/PdfCraft.app/Contents/MacOS/PdfCraft --version` and `pdfcraft-cli tools` before
-trusting specific flags or tool names.
+Unless a bullet says **partial**, the path is wired into the UI and/or the CLI at this tag. If your installed version differs, run `/Applications/PdfCraft.app/Contents/MacOS/PdfCraft --version` and `pdfcraft-cli tools` before trusting flags or tool names. Tool names below are registered in `crates/automation/src/tools.rs` (name, title, schema, description); command ids are in `crates/engine/src/commands.rs`; UI panels and dialogs are under `crates/ui-egui/src`.
+
+### Automation surface at a glance
+
+| Surface | Count at v0.12.0 | Change vs the v0.11.0 skill |
+|---|---|---|
+| Automation tools (`crates/automation/src/tools.rs:117`) | **175** | +4: `form_add_field_table`, `form_calculation_order`, `layer_set`, `standards_remove_id`; none removed |
+| Command registry (`crates/engine/src/commands.rs:165`) | **204** | +3: `form.add.text_table`, `form.calculation_order`, `view.page_gaps`; none removed |
+| CLI subcommands (`apps/pdfcraft-cli/src/main.rs:57`) | **14 documented**, plus internal `check-one` | unchanged |
+| UI control methods (`crates/ui-egui/src/control.rs:279`) | **17** | unchanged |
+| Interface languages (`crates/ui-egui/src/i18n/mod.rs:162`) | **34** (English + 33 catalogs) | +11: ca, ckb, fi, hi, id, ko, lo, nb, ro, sq, th |
+
+`pdfcraft-cli tools` is the live capability contract; the full name/title table is in `references/automation-tools.md`. Every tool has a JSON Schema, read-only/destructive hints and an optional registry command id. `command_list` reports the mapping.
 
 ### Reading, navigation and text
-- Tiled CPU rendering of PDF pages with continuous, single-page, two-up and two-page layouts,
-  rotation, full screen, Read mode, light/dark/system themes, and per-tab history
-  (`crates/ui-egui/src/lib.rs` `set_option`; `crates/ui-egui/src/canvas.rs`; `docs/architecture.md`
-  §Rendering and text).
-- Reading-order text extraction (columns, RTL runs, vertical CJK), find-as-you-type, next/previous
-  match, text selection and permission-aware copy (`crates/render`; `crates/ui-egui/src/canvas.rs`;
-  `docs/architecture.md`). The CLI honours copy permissions too: `pdfcraft-cli text` refuses text
-  from a document that forbids copying unless you pass the owner password.
-- Bookmarks, page thumbnails, the document's own page labels, page transitions/display times, and
-  document word/character counts with optional tagged table/code/image exclusions
-  (`text_word_count` at `crates/automation/src/tools.rs:175`; `docs/word-count.md`).
-- PDF 1.0–1.7, plus PDF 2.0 read/write where 2.0-only features are preserved but not used; damaged
-  files are repaired and the repairs reported (`crates/cos`; `docs/file-format-parity.md` §PDF).
+- Tiled CPU rendering with single, continuous, two-up and two-page layouts, rotation, full screen, Read mode, light/dark/system themes and per-tab history (`crates/ui-egui/src/canvas.rs`; `crates/ui-egui/src/lib.rs` `set_option`). Full screen now shows one fitted page at a time on black, with click/key paging (`docs/ui-parity.md`, 2026-10-21).
+- **New:** optional page gaps. `view.page_gaps` (command), `--page-gaps on|off`, `--default-page-gaps on|off`, and control-channel `ui.set key=page-gaps value=off`; hiding gaps joins page edges and removes shadows but never crops or edits the PDF (`docs/page-display.md`; `crates/ui-egui/src/canvas.rs:186`). The Pages inspector has an independent 50–150% thumbnail slider (`--thumbnail-zoom`; `crates/ui-egui/src/canvas.rs:635`, `docs/ui-parity.md`).
+- Reading-order text extraction (columns, RTL runs, vertical CJK), find-as-you-type, next/previous match, text selection and permission-aware copy (`crates/render`; `crates/ui-egui/src/canvas.rs`). The CLI honours copy permissions: `pdfcraft-cli text` refuses text from a document that forbids copying unless the owner password is supplied (`apps/pdfcraft-cli/src/main.rs:385`).
+- Bookmarks, page thumbnails, page labels, transitions/display times, document word/character counts, layers, attachments, reading colours and the document's initial view (`doc_info`, `text_word_count`, `view_reading_colors`, `doc_initial_view`; `docs/word-count.md`).
+- PDF 1.0–1.7, plus PDF 2.0 read/write where 2.0-only features are preserved but not used; damaged files are repaired and the repairs reported (`crates/cos`; `docs/file-format-parity.md`).
 
 ### Page organization, combine, split, create
-- Rotate, reverse, delete, move, duplicate, replace, extract, insert blank/file pages, crop/boxes,
-  page labels, page transitions (`page_rotate`, `page_reverse` at `tools.rs:227`, `page_delete`,
-  `page_move`, `page_duplicate` (now takes `at`), `page_replace`, `page_extract`,
-  `page_insert_blank`, `page_insert_file`, `page_set_box`, `page_number`, `page_transition_set` —
-  `crates/automation/src/tools.rs`).
-- Combine files with a bookmark per file, carrying links, form fields, layer defaults, attachments
-  and nested bookmarks; field-name collisions between files resolve by rename or merge
-  (`field_conflicts`); split by page count, before pages, bookmarks or maximum size
-  (`doc_combine` at `tools.rs:245`, `doc_split` at `:272`; `crates/organize/src/import.rs`).
-- Create PDFs from blank pages, images (PNG/JPEG/TIFF incl. multi-page and BigTIFF, GIF, BMP,
-  JPEG 2000) and `.txt`/`.text`; several files can be combined or written separately. **Partial**
-  for text: `doc_create` accepts WinAnsi (Western European) characters only
-  (`doc_create` at `tools.rs:1193`; `CONVERTIBLE` at `crates/create/src/lib.rs:490`;
-  `docs/file-format-parity.md`).
-- Compare two documents: text diff plus optional visual-region diff, side-by-side view when both
-  are open, PDF report, or differences added as comments. **Partial**: no change-type filters, page
-  ranges or scanned-document handling (`doc_compare`, `doc_compare_report`,
-  `doc_compare_mark`; `crates/ui-egui/src/compare_ui.rs:207`).
-- Action Wizard: list built-in actions and run them, or run a custom step list, over many files
-  (`action_list`, `action_run`; `crates/engine/src/actions.rs`).
+- Rotate, reverse, delete, move, duplicate (with `at`), replace, extract, insert blank/file pages, crop/boxes, page labels, transitions (`page_rotate`, `page_reverse`, `page_delete`, `page_move`, `page_duplicate`, `page_replace`, `page_extract`, `page_insert_blank`, `page_insert_file`, `page_set_box`, `page_number`, `page_transition_set`; `crates/automation/src/tools.rs`).
+- Combine files with one bookmark per file, carrying links, form fields, layer defaults, attachments and nested bookmarks; field-name collisions resolve by rename or merge (`field_conflicts`); split by page count, before pages, bookmarks or maximum size (`doc_combine`, `doc_split`; `crates/organize/src/import.rs`).
+- Create PDFs from blank pages, images (PNG/JPEG/TIFF including multi-page and BigTIFF, GIF, BMP, JPEG 2000) and `.txt`/`.text` (`doc_create`; `CONVERTIBLE` in `crates/create/src/lib.rs:490`). **Partial** for text: WinAnsi (Western European) characters only; others are refused (`doc_create` description at `crates/automation/src/tools.rs:1243`).
+- Compare two documents: text diff plus optional visual-region diff, side-by-side view when both are open, PDF report, or differences added as comments (`doc_compare`, `doc_compare_report`, `doc_compare_mark`; `crates/ui-egui/src/compare_ui.rs`). **New:** the Compare panel's Show: Text / Visual filter hides text changes or visual differences from the list/shading. **Partial:** still no filters for images, annotations, formatting or background changes, no page ranges, no scanned-document support (`docs/gaps.md` gap 21).
+- Action Wizard: list built-in actions/steps and run an action or a custom step list over many files (`action_list`, `action_run`; `crates/engine/src/actions.rs`). No action management/creation UI.
 
 ### Comments, forms, layers, attachments
-- The standard Acrobat markup types: note, highlight, underline, strikeout, squiggly, replace,
-  rectangle, oval, line, arrow, ink, text box, stamp (static/dynamic/custom), polygon, cloud,
-  polyline, callout, caret and file attachment; replies, review status, locking, summarize,
-  flatten (`comment_*` tools in `crates/automation/src/tools.rs`; `crates/annot`).
-- AcroForm listing, filling with regenerated appearances, field creation (text/date/checkbox/
-  radio/combo/list/button/image/signature), properties, tab order, calculations and field
-  JavaScript, automatic field detection, data import/export; XFA layout and FormCalc are
-  **partial** (`crates/forms`, `crates/xfa`, `crates/js`; `form_*` tools). For dynamic XFA
-  documents the CLI now agrees with the app: `info` reports the laid-out page/field counts, and
-  `text`/`render` read the laid-out pages (`apps/pdfcraft-cli/src/main.rs`;
-  `docs/target-app-parity.md` row F).
-- Fill & Sign without prepared fields: typed text, checks/crosses/dots/lines, dates, typed or image
-  signatures/initials, photo-of-signature scanning (`fill_sign_add` at `tools.rs:1168`;
-  `crates/ui-egui/src/fill_sign.rs`).
-- Layers can be switched in the UI or with `ui.set layer=Name=on|off`; attachments can be opened
-  or saved from the Attachments panel (`crates/ui-egui/src/lib.rs` `set_option`;
-  `crates/ui-egui/src/panels.rs`).
+- Standard markup: note, highlight, underline, strikeout, squiggly, replace, rectangle, oval, line, arrow, ink, text box, stamp (static/dynamic/custom), polygon, cloud, polyline, callout, caret and file attachment; replies, review status, locking and summarization (`comment_*` tools; `crates/annot`); flattening is `doc_flatten`. **New:** `comment_edit` accepts `points`, so a line's ends or a polygon/cloud's corners can be reshaped (not only moved/resized).
+- AcroForm listing, filling with regenerated appearances, field creation (text/date/checkbox/radio/combo/list/button/image/signature), properties, tab order, calculations and field JavaScript, automatic field detection, data import/export (`crates/forms`, `crates/xfa`, `crates/js`; `form_*` tools). XFA layout/FormCalc are **partial** (`docs/gaps.md` gap 15).
+- **New: form calculation order.** `form_calculation_order` reads calculated fields in calculation order with each formula's `reads` and `issues` (`runs_too_early`, `cycle`, `not_in_order`), plus `extra` entries; it can set an order, move one field earlier/later, or `fix` only what must move, then recalculates (`crates/forms/src/calc_order.rs`; `crates/ui-egui/src/calc_order_ui.rs`; command `form.calculation_order`).
+- **New: text-field tables.** `form_add_field_table` divides a rectangle into 1–100 rows and 1–50 columns, one text field per cell, with per-column name patterns (`{row}`, `{col}`, `{seq}`, or a trailing number), relative widths and gaps; it is all-or-nothing and one undo step (`crates/forms/src/table.rs`; `crates/ui-egui/src/field_table_ui.rs`; command `form.add.text_table`).
+- Renaming a field with `form_set_props` also rewrites the formulas that name it (calculation lists/notation and string-literal `getField` calls) in the same undo step; names built at run time are not rewritten (`form_set_props` description).
+- **New: `layer_set`** shows or hides an optional-content group by name (every layer with that name) or 1-based position. It is a view setting: `page_render` draws with it, the file never changes (`crates/automation/src/layers.rs`).
+- Fill & Sign without prepared fields: typed text, checks/crosses/dots/lines, dates, typed or image signatures/initials, photo-of-signature scanning (`fill_sign_add`; `crates/ui-egui/src/fill_sign.rs`). Images fit within 150 pt wide and 32 pt tall (24 pt initials); text no standard font can draw becomes `?` and is reported (`fill_sign_add` description).
+- Links, JavaScript and flattening: `link_*` lists/opens/adds/edits/deletes links, creates links from URLs and removes all; `js_run`, `js_document_scripts`, `js_set_document_script` and `form_set_script` run/edit document and field JavaScript; `xfa_to_static` converts an XFA form to a static form; `doc_flatten` bakes comment/field appearances into page content (XFA field flattening remains partial — `docs/gaps.md` gap 15) (`crates/automation/src/tools.rs`; `crates/js`).
+- Attachments, layers and signatures have panels; attachments can be opened/saved from the Attachments panel, but no automation tool extracts them (`crates/ui-egui/src/panels.rs`).
 
-### Protect, redact, sanitize, audit
-- Standard security handler R2–R6: RC4-40/128, AES-128/256, user/owner passwords with SASLprep,
-  permissions, and re-encryption on save (`crates/crypt`; `doc_protect`, `doc_unprotect`).
-- Redaction by rectangle, text find, word list, pattern (phone/email/credit-card/SSN/date) or whole
-  pages, with FOIA/Privacy Act overlay codes; applying removes text, images, vectors, comments and
-  form fields under the marks and runs a verification pass (`crates/redact/src/lib.rs:548`;
-  `redact_mark`, `redact_apply`).
-- Faux-redaction audit that finds text still extractable under painted boxes and unapplied marks;
-  the CLI exits non-zero on findings (`doc_audit_redactions`; `pdfcraft-cli audit`;
-  `crates/audit`).
-- Remove hidden information / Sanitize, with categories listed first (`doc_hidden_info`,
-  `doc_remove_hidden`).
+### Protect, redact, sanitize, standards
+- Standard security handler R2–R6: RC4-40/128, AES-128/256, user/owner passwords with SASLprep, permissions, re-encryption on save (`crates/crypt`; `doc_protect`, `doc_unprotect`).
+- Redaction by rectangle, text find, word list, pattern (phone/email/credit-card/SSN/date) or whole pages, with FOIA/Privacy Act overlay codes; applying removes text, images, vectors, comments and form fields under the marks and runs a verification pass (`crates/redact/src/lib.rs:597`; `redact_mark`, `redact_apply`). `redact_mark` now takes either `page` or `pages`, not both.
+- Faux-redaction audit finds text still extractable under painted boxes and unapplied marks. It is paint-order and colour-aware, fails closed on unreadable content, and the CLI exits non-zero on findings (`doc_audit_redactions`; `pdfcraft-cli audit`; `crates/audit`).
+- Remove hidden information / Sanitize, with categories listed first (`doc_hidden_info`, `doc_remove_hidden`).
+- **New:** `standards_remove_id` removes PDF/A (`pdfaid:`) or PDF/X (`GTS_PDFXVersion`/`GTS_PDFXConformance`) identification from XMP and document information; it fails if nothing of that kind is declared and does not repair the document (`crates/organize/src/lib.rs:727`). The Standards panel exposes the PDF/A removal; the tool also handles PDF/X (`crates/ui-egui/src/standards_ui.rs:56`).
+- **New:** printing obeys document permissions. `Print…` is disabled when printing is forbidden, and `print_pdf`/`doc_print` fail with `NotPermitted`; when only low-quality printing is allowed, pages are rasterized at no more than 150 dpi (`crates/engine/src/lib.rs:711`, `:4537`; command `print.dialog` requires `Needs::Printing`).
 
 ### Signatures
-- Sign with `.p12`/`.pfx` digital IDs, macOS Keychain identities, or the Windows certificate store;
-  PAdES B-B, SHA-256 (SHA-384 for P-384 keys); certification signatures with
-  no-changes/form-fill/comments levels; visible signatures with image, typed text or drawn strokes;
-  self-signed ID creation; trust list; validation including changes made after signing. **Partial**
-  for hardware tokens, timestamp servers and online revocation
-  (`crates/sign`; `sign_document` at `tools.rs:699`, `sign_id_create`, `sign_keychain_ids`,
-  `sign_windows_ids`, `sign_list`, `sign_trust`).
+- Sign with `.p12`/`.pfx` digital IDs, macOS Keychain identities or the Windows certificate store; PAdES B-B, SHA-256 (SHA-384 for P-384 keys); certification signatures with no-changes/form-fill/comments levels; visible signatures with image, typed text or drawn strokes; self-signed ID creation; trust list; validation including changes made after signing (`crates/sign`; `sign_document`, `sign_id_create`, `sign_keychain_ids`, `sign_windows_ids`, `sign_list`, `sign_trust`).
+- `sign_trust` now accepts `.p7b`/`.p7c` bundles as well as `.cer/.crt/.pem/.der` and `.p12` certificates (`sign_trust` description at `crates/automation/src/tools.rs:793`).
+- Signature validation now checks RFC 3161 timestamp tokens: token signature, imprint, timestamp-authority certificate validity and time-stamping EKU, and whether the timestamp covers the signature value (`crates/sign/src/pdf.rs`; `crates/sign/src/timestamp.rs`). **Partial:** the app/CLI cannot configure a timestamp server; `Session::sign_with_timestamp` and `timestamp_document` exist only as engine APIs (`crates/engine/src/lib.rs:5083`, `:5103`), and `sign_document` has no TSA argument. No PKCS #11/smart cards on macOS/Linux, no online OCSP/CRL, no OS trust store, no EU Trusted Lists (`docs/gaps.md` gap 10).
 
-### OCR, camera, print, export, optimize, standards, accessibility, measuring
-- OCR produces an invisible searchable text layer over the page image; batch recognition and
-  camera-photo straightening/clean-up are separate tools. **Partial**: English/unaccented Latin
-  only (`crates/ocr/src/lib.rs:27`; `ocr_recognize`, `ocr_recognize_files`, `page_enhance_camera`).
-- Print with Acrobat-style options (ranges, subset, reverse, fit/actual/shrink/custom, multiple,
-  booklet, poster, comments/forms, paper sizes, copies, duplex, grayscale, CUPS driver options) or
-  write a print-ready PDF (`crates/print`, `craft-print`; `doc_print`, `printers`,
-  `printer_options`, `print_readiness`).
-- Export pages as PNG/JPEG/TIFF, all embedded images, reading-order text, Word `.docx`,
-  PowerPoint `.pptx`, HTML or RTF. **Partial** for Office formats (basic/lossy)
-  (`crates/export`; `doc_export_images` at `tools.rs:919`, `doc_export_all_images`,
-  `doc_export_text`, `doc_export_office`; formats chosen by extension in
-  `crates/engine/src/compare.rs:129` and `crates/engine/src/export.rs`).
-- Reduce File Size and the full PDF Optimizer (downsample/compress, discard options), plus a space
-  audit (`crates/optimize`; `doc_reduce`, `doc_optimize`, `doc_audit_space`).
-- PDF/A-2b and PDF/A-3b verification and conversion. **Partial**: structural rules only, and CMYK
-  documents get no output intent (`crates/preflight/src/lib.rs:31`; `pdfa_verify`, `pdfa_convert`).
-  There is no PDF/UA verification: `pdfcraft-cli info` and the Standards panel only read what the
-  file *declares* (`crates/preflight/src/lib.rs:174` `declared`).
-- Accessibility Checker with 32 rules in 7 categories, HTML report, review records, alt text, tag
-  property/sibling-order edits, and bounded text-only auto-tagging. **Partial**: no reading-order
-  or table editor (`crates/a11y/src/lib.rs:3`; `accessibility_*` tools).
-- Calibrated 2D distance/perimeter/area measurements with CSV export (`crates/measure`;
-  `measure_*` tools).
-- Edit existing text in place (paragraph or line, with rewrapping and formatting), move 1–1000
-  mixed objects on a page as one undo step, edit images (move/crop/rotate/flip/replace/delete),
-  edit added text/images/links, and import an openly licensed TTF/OTF to complete a source subset.
-  **Partial** for existing text: no rotated text, vector editing or arrange/align
-  (`crates/edit`; `text_edit` at `tools.rs:1284`, `text_edit_layout`, `text_paragraphs`,
-  `text_lines`, `object_list`, `object_move`, `image_edit`, `content_update`, `link_add`,
-  `text_font_import`).
-- Headers/footers with Bates numbering, watermarks (text or image) and backgrounds
-  (`doc_header_footer`, `doc_watermark`, `doc_background`, `doc_remove_marks`).
+### OCR, print, export, optimize, standards, accessibility, measuring
+- OCR adds an invisible searchable text layer over a page image; batch recognition and camera-photo straightening are separate tools (`ocr_recognize`, `ocr_recognize_files`, `page_enhance_camera`). **Partial:** English/unaccented Latin only (`LANGUAGES` in `crates/ocr/src/lib.rs:27`); models must be installed (`ocr_status`, `PDFCRAFT_MODELS`). Recognised text is withheld from the result when the document's security forbids copying.
+- Print with Acrobat-style options (ranges, odd/even, reverse, fit/actual/shrink/custom, multiple/cut-stack, booklet, poster, comments/forms, paper including US #10 envelope, copies, duplex including "printer default", grayscale, CUPS driver options), "print as image" at 72–600 dpi, or write a print-ready PDF (`doc_print`, `printers`, `printer_options`, `print_readiness`; `crates/print`, `craft-print`). `print_readiness` is verification only: image resolution, boxes/bleed, output intents, unembedded fonts, PDF/A-2b structure; it does not check PDF/X.
+- Export pages as PNG/JPEG/TIFF (default 150 dpi), all embedded images, reading-order text, Word `.docx`, PowerPoint `.pptx`, HTML or RTF (`doc_export_images`, `doc_export_all_images`, `doc_export_text`, `doc_export_office`; `crates/export`, `OfficeFormat::from_extension` in `crates/engine/src/compare.rs:149`). **Partial** for Office formats (basic/lossy).
+- Reduce File Size and the full PDF Optimizer (downsample/compress, discard options), plus a space audit (`crates/optimize`; `doc_reduce`, `doc_optimize`, `doc_audit_space`).
+- PDF/A-2b and PDF/A-3b verification and conversion; **partial** (structural rules only, CMYK documents get no output intent) (`crates/preflight/src/lib.rs:31`; `pdfa_verify`, `pdfa_convert`). There is no PDF/UA or PDF/X verification: `pdfcraft-cli info` and the Standards panel only read what a file *declares* (`crates/preflight/src/lib.rs:174`).
+- Accessibility Checker with 32 rules in 7 categories, HTML report, review records, alt text, tag property/sibling-order edits and text-only auto-tagging; **partial** (no reading-order or table editor) (`crates/a11y/src/lib.rs:3`; `accessibility_*` tools).
+- Calibrated 2D distance/perimeter/area measurements with CSV export. **New:** `measure_scale` accepts a ratio (`page_distance` in `page_unit` equals `distance` in `unit`, e.g. 1 mm = 50 mm for a 1:50 plan) as well as `units_per_point` or two calibration points (`measure_*`; `crates/measure`).
+- Edit existing text in place (paragraph or line, with rewrapping and formatting), move 1–1000 mixed objects on a page as one undo step, edit images, edit added text/images/links, and import an openly licensed TTF/OTF to complete a source subset (`crates/edit`; `text_edit`, `text_edit_layout`, `text_paragraphs`, `text_lines`, `object_list`, `object_move`, `image_edit`, `content_update`, `link_add`, `text_font_import`). **New:** `image_edit` supports `rotate_by` any angle clockwise; the format-text panel adds bold/italic/underline, alignment, line spacing, horizontal scale and character spacing, and shows-but-disables lists, superscript/subscript and paragraph spacing (`crates/ui-egui/src/format_text_ui.rs`).
+- **New:** paragraph numbers from `text_paragraphs` stay meaningful across edits: `text_edit`, `text_edit_layout` and `page_render`'s `hide_text_block` find the listed paragraph by text and box; a paragraph an edit merged is refused and named in `stale_paragraphs` (`docs/editing-existing-text.md` §Paragraph numbers; `text_edit` description).
+- Headers/footers with Bates numbering, watermarks (text or image) and backgrounds; **new:** header/footer `shrink` scales page content into the free room and `font` selects Helvetica/Times/Courier (`doc_header_footer`, `doc_watermark`, `doc_background`, `doc_remove_marks`).
+- **New:** new bookmarks can land at a place on the page: `bookmark_add` takes optional `top`/`left` in displayed-page points; a bookmark made with ⌘B goes where the reader is (top of the window or selected text), not blindly page top (`bookmark_add` at `crates/automation/src/tools.rs:293`; `crates/ui-egui/tests/it/bookmark_position.rs`).
 
-### Automation surfaces (three front doors, one tool table)
-- **CLI `pdfcraft-cli`**: `info`, `render`, `text`, `edit`, `combine`, `extract`, `split`, `check`
-  (child-process robustness sweep), `audit`, `batch`, `tools`, `run` (single tool or JSON script),
-  `ui` (drive a running app), `mcp` (opt-in server). `info` reports declared PDF/A and PDF/UA
-  levels and output intents. Usage is `apps/pdfcraft-cli/src/main.rs:57`.
-- **Tool table**: **171** JSON-Schema tools at this tag, with read-only/destructive hints and
-  registry command ids (`crates/automation/src/tools.rs:117`). The command registry has **201**
-  commands with menus, shortcuts and enabled-state (`crates/engine/src/commands.rs:163`). The full
-  name/title table is in `references/automation-tools.md`.
-- **MCP server**: opt-in, stdio only, no port; `pdfcraft-cli mcp [--root DIR] [--compact]
-  [--automation-read-root DIR] [--automation-write-root DIR]`; tools plus resources for open
-  documents (`crates/automation/src/mcp.rs`; `docs/mcp.md`, which also documents installing and
-  registering the server with a client).
-- **UI control channel**: opt-in with `pdfcraft --control FILE`; loopback, random port, per-launch
-  token in an owner-only file. Methods: `ui.state`, `ui.commands`, `ui.command`, `ui.set`,
-  `ui.open`, `ui.inspect`, `ui.click`, `ui.focus`, `ui.resize`, `ui.quit`, `ui.drag`, `ui.move`,
-  `ui.type`, `ui.key`, `ui.screenshot`, `ui.dock`, `ui.dock.reset`
-  (`crates/ui-egui/src/control.rs:278`; `README.md` §Driving the app itself).
+### Platform, interface and packaging
+- Native macOS/Windows/Linux/FreeBSD app plus a WebAssembly shell; no account, telemetry or cloud processing (`README.md`).
+- 34 selectable interface languages (English plus 33 catalogs) at this tag; 11 were added since v0.11.0. Chinese interface text can still show missing-glyph boxes in releases, Arabic layout is not mirrored, and several new catalogues are unreviewed (`docs/gaps.md` gap 5; `docs/localization-parity.md`; `crates/ui-egui/src/i18n/mod.rs:162`). Treat translations as UI polish, not a data path.
+- The macOS `.app` contains only the GUI: `Contents/MacOS` holds `PdfCraft`, not `pdfcraft-cli`. The CLI is a separate signed/notarized release asset, `pdfcraft-cli-<version>-macos-universal.zip` (`README.md` §Downloads; `crates/automation/README.md` §From an installed release).
+- Web build **partial**: no crash-recovery store, no UI control-channel transport and no `ui.open`; printing goes through the browser; it embeds only a subset of fonts (BIZ UDPGothic Regular plus any Arab/Telu/Hebr/Thai/Deva faces) (`crates/ui-egui/src/recovery.rs:9`; `crates/ui-egui/src/control.rs`; `crates/fonts/build.rs:1`).
 
 ## Known limitations and not-implemented
 
-- **Rendering is borrowed and fidelity is unmeasured against Acrobat.** Pages come from vendored
-  `hayro` 0.7 with local patches; the replacement renderer and font engine are incomplete
-  (`docs/gaps.md` gaps 2 and 12; `docs/architecture.md` §Rendering and text). README claims about
-  kerning, colour emoji and blend modes are not independently verified here — **claimed but
-  unverified**.
-- **Existing-text editing is improved but not general.** Latin text with an embeddable matching
-  face works, including full-face completion and Chinese/Japanese insertion in tested cases; text
-  no available face can show is refused. Rotated text, vector editing, list/superscript
-  preservation, structure-tag retention, and arrange/align remain missing or fragile
-  (`docs/gaps.md` gap 3; `docs/editing-existing-text.md`; `text_edit` at `tools.rs:1284`).
-- **Office import is absent; Office export is lossy.** There is no Create PDF from Word, Excel,
-  PowerPoint, HTML, web page, PostScript or EPS; Word export flows text/tables and may lose layout;
-  there is no `.xlsx`, `.doc`, SVG, EPS, PostScript, XML-spreadsheet or JPEG 2000 export
-  (`crates/create/src/lib.rs:490`; `crates/engine/src/compare.rs:129`;
-  `docs/gaps.md` gap 8).
-- **`doc_create` text is Western European (WinAnsi) only**; other characters are refused
-  (`doc_create` description at `tools.rs:1193`). New text drawn with `page_add_text`/`text_edit`
-  can use Arabic, Hebrew, Thai (right-to-left where applicable) and Japanese fallback faces
-  (`page_add_text` description).
-- **OCR reads only unaccented Latin (`en`).** Models must be installed (release bundles include
-  them; source builds use `cargo xtask models`, `PDFCRAFT_MODELS` overrides). No accent, Cyrillic,
-  Greek, CJK, Arabic, Hebrew or Indic recognition; no editable-text OCR output
-  (`crates/ocr/src/lib.rs:27`; `docs/gaps.md` gap 7).
-- **No Preflight** (catalog marks it planned M11); PDF/A only 2b/3b and partial (CMYK output
-  intents, veraPDF oracle not used); no PDF/X or PDF/UA verification, PDF/A-1/4, PDF/E or PDF/VT
-  (`crates/engine/src/catalog.rs:409`; `docs/gaps.md` gap 9).
-- **Signatures**: no PKCS #11/smart cards except the Windows certificate store; no timestamp-server
-  preference, no online OCSP/CRL fetching (LTV only with caller-supplied evidence), no OS trust
-  store, no EU Trusted Lists, no signing in the browser (`docs/gaps.md` gap 10;
-  `sign_document` schema has no TSA argument).
-- **Accessibility is checker + limited repair**: text-only auto-tagging refuses mixed content and
-  existing tags (`accessibility_autotag_apply` at `tools.rs:935`); no reading-order/table editor,
-  visual Tags/Order/Content panels or Read Out Loud; the app itself is not fully keyboard-operable
-  (`docs/gaps.md` gap 11).
-- **Forms**: wider Acrobat JavaScript object model incomplete; document actions, form submission,
-  barcode fields and rich-text values missing; XFA flattening absent (`docs/gaps.md` gap 15).
-- **No scanners** (TWAIN/WIA/ICA/SANE), **no GPU page rasterization** (CPU render then texture
-  upload), **no pen pressure**, **no Read Out Loud** (`docs/gaps.md` gap 20).
-- **Compare** has side-by-side and visual regions now, but no filtering by change type, page
-  ranges or scanned-document support (`docs/gaps.md` gap 21; `crates/ui-egui/src/compare_ui.rs`).
-- **Preferences are sparse** (interface language, documents/view, identity, Fill & Sign,
-  JavaScript, animation effects); no print-production tools (`docs/gaps.md` gaps 18–19).
-- **Performance**: the whole file is held in memory; editing peaks around two copies and saving
-  around three; file-backed lazy input is blocked on the renderer (`docs/gaps.md` gap 13).
-- **UI precision**: moving a selection across pages, rulers/grids/guides, multiple windows and
-  split view are missing (`docs/gaps.md` gap 16).- **Web build**: no crash-recovery store, no UI control channel transport and no `ui.open`;
-  printing goes through the browser dialog; embeds only a subset of fonts (BIZ UDPGothic Regular
-  plus Arab/Telu/Hebr/Thai faces) (`crates/ui-egui/src/recovery.rs:9`;
-  `crates/ui-egui/src/control.rs:786`; `crates/fonts/build.rs:3`).
+The repo's ranked shortfall list is `docs/gaps.md`; read it before promising anything. The bullets below are the ones that change what an agent can safely assign.
+
+- **Rendering is borrowed and fidelity is unmeasured against Acrobat.** Pages come from vendored `hayro` 0.7.x with local patches; the replacement renderer and font engine are incomplete (`docs/gaps.md` gaps 2 and 12; `docs/architecture.md` §Rendering and text). README claims about kerning, colour emoji, blend modes and script coverage are not independently verified here — **claimed but unverified**.
+- **Existing-text editing is improved but not general.** Latin text with an embeddable matching face works, including subset completion and tested Chinese/Japanese insertion; text no available face can show is refused. Rotated text, vector editing, list/superscript preservation, structure-tag retention and arrange/align remain missing or fragile (`docs/gaps.md` gap 3; `docs/editing-existing-text.md`). Paragraph numbers do not survive save/reopen as stable IDs.
+- **Office import is absent; Office export is lossy.** No Create PDF from Word, Excel, PowerPoint, HTML, web page, PostScript or EPS; Word export flows text/tables and may lose layout; no `.xlsx`, `.doc`, SVG, EPS, PostScript, XML-spreadsheet or JPEG 2000 export (`crates/create/src/lib.rs:490`; `crates/engine/src/compare.rs:149`; `docs/gaps.md` gap 8).
+- **`doc_create` text is WinAnsi only**; other characters are refused (`doc_create` at `crates/automation/src/tools.rs:1243`). `page_add_text` adds WinAnsi text, or Arabic/Hebrew/Thai when the build has those craft-fonts faces (`page_add_text` description at `:567`); `text_edit` can also use the Japanese fallback faces, and refuses text no available face can show.
+- **OCR reads only unaccented Latin (`en`).** No accents, Cyrillic, Greek, CJK, Arabic, Hebrew or Indic recognition; no editable-text OCR output (`crates/ocr/src/lib.rs:27`; `docs/gaps.md` gap 7).
+- **No Preflight; PDF/A only 2b/3b and partial.** No PDF/X or PDF/UA verification, PDF/A-1/4, PDF/E or PDF/VT; CMYK documents get no output intent (`crates/engine/src/catalog.rs` Preflight `Planned("M11")`; `docs/gaps.md` gap 9). `standards_remove_id` only strips a standard's identification — it does not make a document compliant.
+- **Signatures:** no PKCS #11/smart cards on macOS/Linux (only the Windows certificate store), no timestamp-server setting, no online OCSP/CRL fetching (LTV only with caller-supplied evidence), no OS trust store, no EU Trusted Lists, no signing in the browser (`docs/gaps.md` gap 10; `sign_document` schema has no TSA argument). Engine-only `sign_with_timestamp`/`timestamp_document` are not reachable from the CLI/UI.
+- **Accessibility is checker + limited repair:** text-only auto-tagging refuses mixed content and existing tags; no reading-order/table editor, visual Tags/Order/Content panels, or Read Out Loud; the app itself is not fully keyboard-operable (`docs/gaps.md` gap 11).
+- **Forms:** wider Acrobat JavaScript object model incomplete; document actions, form submission, barcode fields and rich-text values missing; XFA flattening is incomplete (`docs/gaps.md` gap 15). `form_calculation_order` can report a cycle but **cannot fix it** — no order repairs a formula that reads its own result; change the formula. Text-field tables are capped at 100 rows × 50 columns, and a cell under 4 points or a duplicate/period-containing name refuses the whole table.
+- **Compare** has side-by-side and Text/Visual filters, but no filters for images, annotations, formatting or headers/footers, no page ranges and no scanned-document support (`docs/gaps.md` gap 21; `crates/ui-egui/src/compare_ui.rs:27`).
+- **No scanners** (TWAIN/WIA/ICA/SANE), **no GPU page rasterization** (CPU render then texture upload), **no pen pressure**, **no Read Out Loud** (`docs/gaps.md` gap 20).
+- **Preferences are sparse** (interface language, documents/view, identity, Fill & Sign, JavaScript, animation effects); print-production tools (output preview, separations, ink manager, printer marks, colour conversion) are absent (`docs/gaps.md` gaps 18–19).
+- **Performance:** the whole file is held in memory; viewing holds one copy, editing lets go of the old working file but saving still peaks around three copies; file-backed lazy input is blocked on the renderer (`docs/gaps.md` gap 13).
+- **UI precision:** moving selected objects across pages, rulers/grids/guides, multiple windows and split view are missing (`docs/gaps.md` gap 16).
 - **No AI/cloud features**; only a local/opt-in provider is planned (`docs/gaps.md` gap 23).
-- **Other PDF gaps**: no certificate (public-key) encryption, no linearized/Fast-Web-View save,
-  no portfolio view, no `.xdp` opened as a document, no Acrobat `.sequ` action files
-  (`docs/file-format-parity.md`).
-- **Copy-protected documents**: extraction and copy honour permissions; the owner password is
-  required (`pdfcraft-cli` `text`; `text_extract`).
-- **The macOS `.app` contains only the GUI**; `pdfcraft-cli` is a separate release zip
-  (`crates/automation/README.md` §From an installed release; verified: `Contents/MacOS` holds only
-  `PdfCraft`).
-- **The All tools catalogue shows planned entries** marked with their milestone; a visible tool is
-  not proof it works today (`crates/engine/src/catalog.rs:16`; `crates/ui-egui/src/panels.rs:125`).
+- **Other PDF gaps:** no certificate (public-key) encryption, no linearized/Fast-Web-View save, no portfolio view, no `.xdp` opened as a document, no Acrobat `.sequ` action files (`docs/file-format-parity.md`; `docs/gaps.md` gap 17).
+- **Copy- and print-protected documents:** extraction, copy, compare and OCR text output honour permissions; printing is refused or capped at 150 dpi. Supply the owner/password where the caller legitimately has it; do not try to bypass.
+- **View-only settings do not save:** page gaps, layer visibility and reading colours change the view and `page_render`, not the file (`docs/page-display.md`; `crates/automation/src/layers.rs`). Page gaps also has no JSON tool at this tag: `command_run id=view.page_gaps` returns "has no headless tool"; use the app/control channel (`ui.set key=page-gaps`) or `--page-gaps` at launch.
+- **The All tools catalogue shows planned entries** marked with their milestone; a visible tool is not proof it works today (`crates/engine/src/catalog.rs:16`; `crates/ui-egui/src/panels.rs`).
+- Internal parity docs lag the code at this tag: `docs/target-app-parity.md` still says "141 automation tools", `docs/gaps.md` gap 14 still lists Hindi/Indonesian/Korean catalogs as missing although they exist, and gap 18 still lists "print as image" as missing although `doc_print.as_image` is implemented. Trust the code and `pdfcraft-cli tools`.
 
 ## How to operate
 
 ### Launch (macOS)
-- App: `/Applications/PdfCraft.app` (bundle id `ai.storyteller.pdfcraft`, minimum macOS 11.0 —
-  `Contents/Info.plist`). Binary: `/Applications/PdfCraft.app/Contents/MacOS/PdfCraft`.
-- `open -a PdfCraft` or `open -a PdfCraft /path/file.pdf`. Pass flags with
-  `open -a PdfCraft --args --control ~/.pdfcraft-control.json`.
-- `/Applications/PdfCraft.app/Contents/MacOS/PdfCraft --version` prints `pdfcraft 0.11.0` without
-  opening a window (verified on the installed bundle).
-- Desktop flags: files…, `--version`, `--control FILE`, `--create-images [images…]`,
-  `--new-window`. Everything else is a `--key value` view option applied by
-  `crates/ui-egui/src/lib.rs` `set_option` (`:2482`). View: `--page N`, `--zoom 150`,
-  `--layout single|continuous|two-up|two-page`, `--continuous on|off`, `--cover on|off`,
-  `--rotate 0|90|180|270`, `--select <ranges>`, `--find <text>`, `--comment PAGE:INDEX`,
-  `--layer "Name=on|off"`, `--grid-zoom 50..300`, `--organize on`, `--fields on`.
-  Panels/mode/tools: `--panel comments|bookmarks|pages|fields|layers|attachments|signatures|
-  accessibility|tags|search|compare|none`, `--mode all|read|edit|convert|sign`,
-  `--default-mode …`, `--tool <catalogue id>`, `--quick <quick tool>`, `--tools-side left|right`,
-  `--tools collapsed`, `--left open|closed`, `--home on`, `--palette <query>`,
-  `--combine-view grid|list`, `--combine-zoom 60..200`, and `--dialog properties|security|fonts|
-  advanced|shortcuts|split|protect|page-boxes|header-footer|watermark|background|export-image|
-  word-count|export-text|export-all-images|accessibility-options|recognize-text|js-console|
-  document-js|preferences|compare-files|action-wizard|pdfa|signature|optimize|sign|certify|
-  number-pages|none`. Defaults/preferences: `--default-layout …`, `--default-continuous on|off`,
-  `--default-zoom fit-width|fit-page|<pct>`, `--theme light|dark|system`, `--language auto|<code>`,
-  `--author <name>`, `--date-format …`, `--date-language …`, plus preference keys such as
-  `--scroll-speed`, `--animation-effects`, `--ui-scale`, `--system-title-bar`,
-  `--flatten-fill-sign` (full key list in `set_option`; `--quick` accepts tool names such as
-  select, hand, crop, redact, add-text, edit-text, sign, certify, measure-*, stamp-*, field-*).
-  Unknown options fail with `unknown option`; `--page`/`--zoom`/`--layout`/`--find`/`--rotate` and
-  friends need an open document.
-- By default the All tools/mode rail is on the left and a panel docks on the right; panels can be
-  floated or moved (`crates/ui-egui/src/docking.rs`; `README.md` §Driving the app itself). Window
-  size/position is restored between launches (`crates/ui-egui/src/window_state.rs`); a second
-  launch routes its files to the running instance as tabs
-  (`apps/pdfcraft/src/single_instance.rs`), while `--new-window` starts an independent window.
+- App: `/Applications/PdfCraft.app` (bundle id `ai.storyteller.pdfcraft`, minimum macOS 11.0 — `Contents/Info.plist`). Binary: `/Applications/PdfCraft.app/Contents/MacOS/PdfCraft`.
+- `open -a PdfCraft` or `open -a PdfCraft FILE.pdf`. Pass flags with `open -a PdfCraft --args --control ~/.pdfcraft-control.json`.
+- `/Applications/PdfCraft.app/Contents/MacOS/PdfCraft --version` prints `pdfcraft 0.12.0` without opening a window (verified on the installed bundle). `pdfcraft-cli --version` prints its own version.
+- Desktop flags: files…, `--version`, `--control FILE`, `--create-images [images…]`, `--new-window`. View/state keys applied by `set_option` (`crates/ui-egui/src/lib.rs:2619`): `--page N`, `--zoom 150`, `--layout single|continuous|two-up|two-page`, `--continuous on|off`, `--page-gaps on|off`, `--default-page-gaps on|off`, `--cover on|off`, `--rotate 0|90|180|270`, `--select <ranges>`, `--find <text>`, `--comment PAGE:INDEX`, `--layer "Name=on|off"`, `--grid-zoom 50..300`, `--thumbnail-zoom 50..150`, `--organize on`, `--fields on`, `--always-default-view on|off`.
+- Panels/mode/tools: `--panel comments|bookmarks|pages|fields|layers|attachments|signatures|accessibility|tags|search|compare|none`, `--mode all|read|edit|convert|sign`, `--default-mode …`, `--tool <catalogue id>`, `--quick <quick tool>`, `--tools-side left|right`, `--tools collapsed`, `--left open|closed`, `--home on`, `--palette <query>`, `--combine-view grid|list`, `--combine-zoom 60..200`, and `--dialog properties|security|fonts|advanced|shortcuts|split|protect|page-boxes|header-footer|watermark|background|export-image|word-count|export-text|export-all-images|accessibility-options|recognize-text|js-console|document-js|preferences|compare-files|action-wizard|pdfa|signature|optimize|sign|certify|number-pages|none`.
+- Defaults/preferences: `--default-layout …`, `--default-continuous on|off`, `--default-zoom fit-width|fit-page|<pct>`, `--theme light|dark|system`, `--language auto|<code>`, `--author <name>`, `--date-format …`, `--date-language …`, plus exact `set_option` keys such as `--ui-scale`, `--system-title-bar`, `--flatten-fill-sign` (the key is the flag verbatim, so `scroll_speed`/`animation_effects` keep their underscores). Unknown options fail with `unknown option`; `--page`/`--zoom`/`--layout`/`--find`/`--rotate` and document view keys need an open document.
+- By default the All tools/mode rail is on the left and a panel docks on the right; panels can be floated or moved (`crates/ui-egui/src/docking.rs`; `README.md` §Driving the app itself). Window size/position is restored (`crates/ui-egui/src/window_state.rs`). On Windows and Linux/BSD a launch that only names files hands them to the running instance as tabs; on macOS Finder opens do the same through Apple events; `--new-window` starts an independent window (`apps/pdfcraft/src/single_instance.rs`; `apps/pdfcraft/src/apple_events.rs`).
 
 ### Headless CLI (not installed with the app)
-`pdfcraft-cli` is a separate signed/notarized release asset on macOS:
-`pdfcraft-cli-<version>-macos-universal.zip`. Put it on `PATH` (or install from a checkout with
-`cargo install --path apps/pdfcraft-cli --locked`, `docs/mcp.md` §Install and register). Use the
-same release as the app where possible; the control protocol is internal and may change between
-versions.
+`pdfcraft-cli` is a separate signed/notarized release asset on macOS: `pdfcraft-cli-<version>-macos-universal.zip`. Put it on `PATH` (or build from a checkout with `cargo install --path apps/pdfcraft-cli --locked`, `docs/mcp.md`). Use the same release as the app where possible; the control protocol is internal and may change between versions.
+
+Documented subcommands: `info`, `render`, `text`, `edit`, `combine`, `extract`, `split`, `check`, `audit`, `batch`, `tools`, `run`, `ui`, `mcp`; the internal `check-one` worker is spawned by `check` (`apps/pdfcraft-cli/src/main.rs:90`).
 
 ```sh
 pdfcraft-cli info report.pdf          # + declared pdfa/pdfua, output_intents, xfa_layout
@@ -282,135 +140,73 @@ pdfcraft-cli run --script steps.json --root ./work --report
 pdfcraft-cli audit maybe-redacted.pdf      # exits non-zero on findings
 ```
 
-A script is a JSON array of `{"tool": "...", "args": {...}}` steps; one session keeps document ids
-stable (`doc_open` → 1). With `--root DIR`, every read/write path, including a step's `"out"`, must
-resolve inside DIR. `--report` prints one JSON document with per-step status/result.
+A script is a JSON array of `{"tool": "...", "args": {...}}` steps; one session keeps document ids stable (`doc_open` → 1). With `--root DIR`, every read/write path, including a step's `"out"`, must resolve inside DIR. `--report` prints one JSON document with per-step status/result.
 
-MCP (opt-in, stdio, no port): add
-`{"command":"pdfcraft-cli","args":["mcp","--root","/path/to/pdfs"]}` to the agent's MCP config.
-`--compact` exposes a small core set plus `tool_search` and `tool_call`. For least privilege use
-`--automation-read-root` and `--automation-write-root` instead of one broad `--root`; a missing root
-grants none of its access (`docs/mcp.md`).
+### MCP (opt-in, stdio, no port)
+Add `{"command":"pdfcraft-cli","args":["mcp","--root","work/pdfs"]}` to the agent's MCP config. `--compact` exposes a small core set plus `tool_search` and `tool_call`. For least privilege use `--automation-read-root` and `--automation-write-root` instead of one broad `--root`; a missing root grants none of its access (`docs/mcp.md`; `crates/automation/src/mcp.rs`). The server exposes open documents as resources (`pdfcraft://doc/{doc}/info`, `…/text`, `…/page/{page}/text`, `…/page/{page}/image{?dpi}`) and never starts on its own.
 
-UI control channel (opt-in): start the app with `--control ~/.pdfcraft-control.json`, then send
-methods over `pdfcraft-cli ui --control ~/.pdfcraft-control.json …`:
-`inspect query=…`, `click label="Organize pages"`, `key key=K modifiers='["command"]'`,
-`command id=comment.square`, `drag from='[400,300]' to='[600,420]'`,
-`screenshot --out window.png`, `quit`.
-`quit` asks the normal Save/Don't save/Cancel prompt for unsaved work and never discards silently.
-Keep the control file in a user-only folder, never `/tmp`.
+### UI control channel (opt-in)
+Start the app with `--control ~/.pdfcraft-control.json`, then send methods over `pdfcraft-cli ui --control ~/.pdfcraft-control.json …`:
+`inspect query=…`, `click label="Organize pages"`, `key key=K modifiers='["command"]'`, `command id=comment.square`, `drag from='[400,300]' to='[600,420]'`, `screenshot --out window.png`, `quit`.
+The 17 methods are `ui.state`, `ui.commands`, `ui.command`, `ui.set`, `ui.open`, `ui.inspect`, `ui.click`, `ui.focus`, `ui.resize`, `ui.quit`, `ui.drag`, `ui.move`, `ui.type`, `ui.key`, `ui.screenshot`, `ui.dock`, `ui.dock.reset` (`crates/ui-egui/src/control.rs:279`). `ui.open` focuses an already-open tab (`"focused": true`) instead of duplicating it. `ui.state.active` reports `page`, `zoom_percent`, `layout`, `continuous`, `page_gaps`, `thumbnail_zoom`, `selected_pages` and `pages_on_screen` rectangles for aiming clicks. `ui.set key=page-gaps value=off` changes the active document; `key=default-page-gaps` changes future ones; `command id=view.page_gaps` toggles the command. `quit` asks the normal Save/Don't save/Cancel prompt for unsaved work and never discards silently.
+The control file is created by the app with owner-only permissions; keep it in a private folder, not a shared or world-writable one. `pdfcraft-cli ui` refuses a symlink and, on macOS/Linux/FreeBSD, a file owned or readable/writable by another user (`README.md` §Driving the app itself).
 
-### Document model and workflow
-- One window, several documents as tabs; `--new-window` gives a launch its own window. A dot marks
-  unsaved changes. Closing/quitting prompts before loss (`README.md` §Organize;
-  `crates/ui-egui/src/lib.rs`).
-- The Open dialog filters PDFs; dropping or passing an image/text file converts it into a new,
-  unsaved PDF instead (`crates/ui-egui/src/files.rs`; `crates/ui-egui/src/create_ui.rs`
-  `open_converted`). Only a PDF is edited in place; a converted image/text file must be saved as a
-  new PDF.
-- Edits stay in memory as undo steps; autosave writes recovery snapshots every 60 seconds and
-  offers recovery after a crash (`crates/ui-egui/src/recovery.rs:28`; encrypted documents stay
-  encrypted on disk).
-- Save (`⌘S`) writes an **incremental update appended to the same file**, preserving the original
-  bytes and prior signatures; Save As (or any new path) is a full rewrite (garbage-collected,
-  unless the document is signed). Writes are atomic via a staging file
-  (`crates/automation/src/lib.rs:918`; `crates/cos/src/writer.rs:180`;
-  `crates/platform/src/staging.rs:104`). `doc_save` `full: true` forces the rewrite;
-  `flatten_fill_sign: true` bakes Fill & Sign marks into the page first.
-- A full rewrite happens where it must: redaction, PDF/A conversion, password change, sanitize, or
-  Save As with garbage collection; signed documents are protected from optimizer rewrites
-  (`docs/architecture.md` §Data model; `doc_optimize` description).
-- Export formats are chosen by extension: images `.png/.jpg/.tif`; Office `.docx/.pptx/.html/.htm/
-  .rtf`; form/comment data `.xfdf/.fdf/.xml/.xdp/.csv/.txt/.tab/.tsv`; text `.txt`; print output
-  either a printer name or a PDF path (`crates/engine/src/compare.rs:147`;
-  `crates/xfdf/src/lib.rs:52`; `doc_print`).
+### Document model, save and export
+- One window, several documents as tabs; `--new-window` gives a launch its own window. A dot marks unsaved changes; closing/quitting prompts before loss (`README.md`; `crates/ui-egui/src/lib.rs`).
+- The Open dialog filters PDFs; dropping or passing an image/text file converts it into a new, unsaved PDF instead (`crates/ui-egui/src/files.rs`; `crates/ui-egui/src/create_ui.rs` `open_converted`). Only a PDF is edited in place; a converted image/text file must be saved as a new PDF.
+- Edits stay in memory as undo steps; autosave writes recovery snapshots every 60 seconds and offers recovery after a crash (`crates/ui-egui/src/recovery.rs:28`; encrypted documents stay encrypted on disk).
+- Save (`⌘S`) writes an **incremental update appended to the same file**, preserving the original bytes and prior signatures; Save As (or any new path) is a full rewrite (garbage-collected, unless the document is signed). Writes are atomic via a staging file (`crates/automation/src/lib.rs:1036`; `crates/cos/src/writer.rs:189`; `crates/platform/src/staging.rs:126`). `doc_save` `full: true` forces the rewrite; `flatten_fill_sign: true` bakes Fill & Sign marks into the page first and removes those annotations, while other comments and form fields stay.
+- A full rewrite happens where it must: redaction, PDF/A conversion, password change, sanitize, Save As with garbage collection, or a print imposition; signed documents are protected from optimizer rewrites (`docs/architecture.md` §Data model; `doc_optimize` description).
+- Export formats are chosen by extension: images `.png/.jpg/.tif`; Office `.docx/.pptx/.html/.htm/.rtf`; form/comment data `.xfdf/.fdf/.xml/.xdp/.csv/.txt/.tab/.tsv`; text `.txt`; print output either a printer name or a PDF path (`crates/engine/src/compare.rs:149`; `crates/xfdf/src/lib.rs:52`; `doc_print`). Image page export defaults to 150 dpi; JPEG/TIFF are flattened onto white.
 
 ### Panels and keyboard (verified in the command registry)
-Panels: comments, bookmarks, pages, fields, layers, attachments, signatures, accessibility, tags,
-search, compare (`crates/ui-egui/src/lib.rs` `set_option` "panel").
+Panels: comments, bookmarks, pages, fields, layers, attachments, signatures, accessibility, tags, search, compare (`crates/ui-egui/src/lib.rs` `set_option` "panel").
 
-`⌘K` command palette · `⌘F` find / `⇧⌘F` advanced search · `⌘G` / `⇧⌘G` next/previous match ·
-`⌘Z` / `⇧⌘Z` undo/redo · `⌘S` / `⇧⌘S` save / save as · `⌘O` open · `⌘W` close / `⇧⌘W` close all ·
-`⌘P` print · `⌘D` document properties · `⌘J` JavaScript console · `⌘B` add bookmark · `⌘,`
-preferences · `⌘L` full screen · `⌃⌘H` Read mode · `⌘3` fit visible · `⌃Tab` / `⌃⇧Tab`
-next/previous tab · `⌘[` / `⌘]` previous/next view · `⇧⌘N` go to page
-(`crates/engine/src/commands.rs:196-365`). On Windows/Linux the command modifier is Ctrl; labels
-follow the interface language, machine ids never change.
+`⌘K` command palette · `⌘F` find / `⇧⌘F` advanced search · `⌘G` / `⇧⌘G` next/previous match · `⌘Z` / `⇧⌘Z` undo/redo · `⌘S` / `⇧⌘S` save / save as · `⌘O` open · `⌘W` close / `⇧⌘W` close all · `⌘P` print · `⌘D` document properties · `⌘J` JavaScript console · `⌘B` add bookmark · `⌘,` preferences · `⌘L` full screen · `⌃⌘H` Read mode · `⌘3` fit visible · `⌃Tab` / `⌃⇧Tab` next/previous tab · `⌘[` / `⌘]` previous/next view · `⇧⌘N` go to page (`crates/engine/src/commands.rs:196`; `crates/ui-egui/src/canvas.rs` for `⌘G`). On Windows/Linux the command modifier is Ctrl; labels follow the interface language, machine ids never change. The two new form commands map to tools (`form_add_field_table`, `form_calculation_order`); `view.page_gaps` has **no** headless tool, so `command_run` cannot run it — use the palette or the control channel (`ui.set key=page-gaps`).
 
 ## Working with an AI agent
 
 **Legitimate work.**
-- Prefer the headless tool table over GUI automation. `pdfcraft-cli tools` (or MCP `tools/list`)
-  is the capability contract for the installed version; `command_list` maps UI commands to tools.
-- Prepare inputs: images (PNG/JPEG/TIFF/GIF/BMP/JP2/J2K/JPX) and `.txt` for `doc_create`;
-  XFDF/FDF/XML/XDP/CSV/TXT for `doc_import_data`/`form_merge_data`; `.p12`/`.pfx` or a Keychain/
-  Windows-store identity for signing; openly licensed TTF/OTF for `text_font_import`.
-- Inspect and repair: `doc_info` exposes warnings and repairs; `doc_inspect` summarizes open
-  documents; `doc_revisions` + `doc_open_revision` show what each incremental save appended;
-  `pdfcraft-cli info` tells you which PDF/A or PDF/UA level a file claims.
-- Verify with independent observations: `page_render`/`render_preview` for pixels, `text_extract`
-  for text, `doc_audit_redactions` after redaction, `pdfa_verify` after PDF/A conversion, and
-  external `qpdf`, `pdftotext`, `pdftoppm` or a real viewer where installed. The repo itself uses
-  hayro, qpdf and poppler as oracles (`README.md` §How it's built).
-- For UI work, launch with `--control`, use `ui.inspect` to get the accessibility tree, click by
-  unique label or widget id, then `ui.screenshot` to confirm. Never guess coordinates from an old
-  launch.
-- Use `doc_batch`/`pdfcraft-cli batch` for folders; it never overwrites existing outputs and
-  continues after per-file errors unless `--stop-on-error`.
+- Prefer the headless tool table over GUI automation. `pdfcraft-cli tools` (or MCP `tools/list`) is the capability contract for the installed version; `command_list` maps UI commands to tools.
+- Prepare inputs: images (PNG/JPEG/TIFF/GIF/BMP/JP2/J2K/JPX) and `.txt` for `doc_create`; XFDF/FDF/XML/XDP/CSV/tab-delimited text for `doc_import_data`, and FDF/XFDF or filled PDFs for `form_merge_data`; `.p12`/`.pfx`, a Keychain/Windows-store identity, or a `.p7b`/`.p7c`/`.cer`/`.crt`/`.pem`/`.der` trust bundle for signing/trust; openly licensed TTF/OTF for `text_font_import`.
+- Use the 0.12 additions deliberately:
+  - `form_calculation_order doc=1` before filling a calculated form; `fix=true` moves only fields that must move and recalculates. A `cycle` issue means order alone cannot fix the form.
+  - `form_add_field_table` for grids of blanks; names must be unique across the form and contain no period; either all cells are added or none.
+  - `layer_set doc=1 layer="Dimensions" visible=false` before `page_render` to verify what a reader sees with a layer hidden; this does not edit the file.
+  - `standards_remove_id doc=1 standard=pdfa|pdfx` only when a document no longer claims compliance; it does not repair it.
+  - Page gaps has no JSON tool at this tag: use `ui.set key=page-gaps value=off` on the control channel, the palette command, or `--page-gaps` at launch.
+- Inspect and repair: `doc_info` exposes warnings and repairs; `doc_inspect` summarizes open documents; `doc_revisions` + `doc_open_revision` show what each incremental save appended; `pdfcraft-cli info` tells you which PDF/A or PDF/UA level a file claims (not whether it complies).
+- Verify with independent observations: `page_render`/`render_preview` for pixels, `text_extract` for text, `doc_audit_redactions` after redaction, `pdfa_verify` after PDF/A conversion, `print_readiness` before sending a job, and external `qpdf`, `pdftotext`, `pdftoppm`, `pdfsig` or a real viewer where installed. The repo itself uses hayro, qpdf and poppler as oracles (`README.md` §How it's built).
+- For UI work, launch with `--control`, use `ui.inspect` to get the accessibility tree, click by unique label or widget id, then `ui.screenshot` to confirm. `ui.state.active.pages_on_screen` gives page rectangles; never reuse coordinates from an older launch.
+- Use `doc_batch`/`pdfcraft-cli batch` for folders; it never overwrites existing outputs and continues after per-file errors unless `--stop-on-error`.
 
 **Must not.**
-- Do not drive the GUI blind or assume a deterministic layout across launches; use the control
-  channel and `inspect`.
-- Do not assume Office/HTML/PostScript import, `.xlsx` export, SVG/EPS/PS/JP2 export, or OCR in any
-  language but English.
-- Do not rewrite signed documents destructively; incremental save keeps signatures valid, but any
-  full rewrite invalidates certification. Keep the original bytes.
-- Do not use `doc_create` for non-WinAnsi text; it will refuse. Use `page_add_text`/`text_edit`
-  with an embeddable face for other scripts.
-- Do not expect headless extraction of document-level attachments (the Attachments panel can open
-  and save them; no automation tool does), or an engine tool for layer visibility (only the UI or
-  `ui.set layer=…` on the control channel).
-- Do not put the control file in a shared folder or enable the MCP server/control channel by
-  default; both are opt-in and loopback-only (`README.md` §Driving the app itself).
+- Do not drive the GUI blind or assume a deterministic layout across launches; use the control channel and `inspect`.
+- Do not assume Office/HTML/PostScript import, `.xlsx` export, SVG/EPS/PS/JP2 export, PDF/X or PDF/UA verification, or OCR in any language but English.
+- Do not rewrite signed documents destructively; incremental save keeps signatures valid, but any full rewrite invalidates certification. Keep the original bytes.
+- Do not use `doc_create` for non-WinAnsi text; it will refuse. Use `page_add_text`/`text_edit` with an embeddable face for other scripts.
+- Do not expect headless extraction of document-level attachments (the Attachments panel can open and save them; no automation tool does). Do not expect `layer_set` or page gaps to persist in the PDF — they are view settings.
+- Do not expect a timestamp server or PKCS #11 token in the CLI/UI; signing is PAdES B-B, and timestamp validation only covers tokens already in the file.
+- Do not use `form_calculation_order fix=true` to repair a formula cycle, or `standards_remove_id` as a compliance fix. Both report their limits.
+- Do not put the control file in a shared folder or enable the MCP server/control channel by default; both are opt-in and loopback/stdio only (`README.md` §Driving the app itself; `docs/mcp.md`).
 - Do not assume `pdfcraft-cli` exists on a machine with only the macOS app installed.
 
 ## Verification protocol
 
 Alpha-software discipline for every session:
-1. **Throwaway round-trip first.** In a scratch folder, open → edit → `doc_save` to a *new* path →
-   reopen with `pdfcraft-cli info/text` and in Preview/Acrobat or `qpdf --check`. Reopening only in
-   PdfCraft proves little about other readers.
-2. **Never trust a silent export.** Re-render exported images, re-read exported text, and open
-   `.docx/.pptx` in Word/PowerPoint or LibreOffice before declaring success; Office export is known
-   lossy — compare against page images.
-3. **Redaction is not done until audited.** Run `pdfcraft-cli audit` (or `doc_audit_redactions`) on
-   the saved file; `redact_apply`'s internal verification is a gate, not a substitute.
-4. **Signatures:** after signing, use `sign_list` (and `pdfsig`/OpenSSL if available) on the saved
-   file; check "changes after signing" and that the revision you expect is the one covered.
-5. **Backups and versions.** Keep the original PDF before any full rewrite. Check
-   `/Applications/PdfCraft.app/Contents/MacOS/PdfCraft --version` and `pdfcraft-cli --version`
-   before trusting this skill's flags or tools; update apps only between projects, never mid-task.
-6. **Hostile or huge files.** Use `pdfcraft-cli check` (separate child process per file) when a
-   file misbehaves. Read `~/Library/Application Support/PdfCraft/logs/pdfcraft.log` for internal
-   errors; treat an unexpected exit as a bug to report, not a boundary.
+1. **Throwaway round-trip first.** In a scratch folder, open → edit → `doc_save` to a *new* path → reopen with `pdfcraft-cli info`/`text` and in Preview/Acrobat or `qpdf --check`. Reopening only in PdfCraft proves little about other readers.
+2. **Never trust a silent export.** Re-render exported images, re-read exported text, and open `.docx/.pptx` in Word/PowerPoint or LibreOffice before declaring success; Office export is known lossy — compare against page images.
+3. **Redaction is not done until audited.** Run `pdfcraft-cli audit` (or `doc_audit_redactions`) on the saved file; `redact_apply`'s internal verification is a gate, not a substitute. The audit now fails closed, so an unreadable page is not a clean bill.
+4. **Signatures:** after signing, use `sign_list` (and `pdfsig`/OpenSSL if available) on the saved file; check "changes after signing", the revision the signature covers, and any embedded timestamp's trust. PdfCraft's `sign_document` produces PAdES B-B with no timestamp at all; only a file signed elsewhere (or built through the engine's TSA API) may carry one.
+5. **Print and view settings:** before a print job, check `print_readiness` and the document's permissions; a printing-forbidden document will fail, and a low-quality-only document rasterizes at ≤150 dpi. Page gaps, layer visibility and reading colours are view-only — verify them with `page_render`, not by expecting the file to change.
+6. **Backups and versions.** Keep the original PDF before any full rewrite. Check `/Applications/PdfCraft.app/Contents/MacOS/PdfCraft --version` and `pdfcraft-cli --version` before trusting this skill's flags or tools; update apps only between projects, never mid-task.
+7. **Hostile or huge files.** Use `pdfcraft-cli check` (separate child process per file) when a file misbehaves. Read the app's `logs/pdfcraft.log` under the user's Application Support/PdfCraft folder for internal errors; treat an unexpected exit as a bug to report, not a boundary.
 
 ## Sources & evidence
 
-- Repo: https://github.com/storytold/pdfcraft · tag `v0.11.0` · inspected commit
-  `3e3064532f04fd6ec769c6bd7b2c97464757970e` ("Release: PdfCraft v0.11.0", 2026-10-21); date of
-  inspection 2026-10-22. Installed app: `/Applications/PdfCraft.app` 0.11.0, build commit
-  `3e3064532f04fd6ec769c6bd7b2c97464757970e` (binary `--version` → `pdfcraft 0.11.0`).
-- Verify against your installed version: users may lag or lead this pin.
-- Key files read: `README.md`, `ROADMAP.md`, `docs/{gaps,roadmap,architecture,file-format-parity,
-  target-app-parity,mcp,cli-batch,development,word-count,editing-existing-text}.md`, `Cargo.toml`,
-  `apps/pdfcraft/src/main.rs`, `apps/pdfcraft-cli/src/main.rs`, `crates/automation/{README.md,
-  src/tools.rs,src/lib.rs,src/mcp.rs}`, `crates/engine/src/{commands.rs,catalog.rs,compare.rs,
-  export.rs}`, `crates/ui-egui/src/{lib.rs,control.rs,recovery.rs,canvas.rs,compare_ui.rs,
-  panels.rs,files.rs,create_ui.rs,window_state.rs}`, `crates/{create,crypt,redact,preflight,ocr,
-  a11y,xfdf,measure,edit,organize,sign}/src` (key `lib.rs` files, `crates/sign/src/cms.rs`,
-  `crates/organize/src/import.rs`), `crates/platform/src/staging.rs`, `crates/fonts/build.rs`,
-  `apps/pdfcraft-web/`, `/Applications/PdfCraft.app/Contents/Info.plist`.
-- Shared libraries consulted: `storytold/craft-libs`
-  (`craft-print`, `craft-quit`, `craft-ui`, `craft-docpath` pins in `Cargo.toml`).
-- Companion files: `evidence.md` (claim → evidence → tier table) and
-  `references/automation-tools.md` (all 171 tool names and titles).
+- Repo: https://github.com/storytold/pdfcraft · tag `v0.12.0` · inspected commit `39844f06b58bc96bae72d3fb56faaa3b6201c945` ("Release 0.12.0", 2026-10-22); date of inspection 2026-10-23. The checkout is a detached worktree pinned to the release tag.
+- Installed app: `/Applications/PdfCraft.app` 0.12.0, bundle id `ai.storyteller.pdfcraft`, minimum macOS 11.0 (`Contents/Info.plist`); binary `--version` → `pdfcraft 0.12.0`. The macOS bundle contains only `PdfCraft`, not `pdfcraft-cli`.
+- Diffed `v0.11.0..v0.12.0` (466 files changed) to separate new capability from carried-over behaviour; every carried-forward caution was re-checked against this tag. Counts were machine-diffed from `tools.rs` and `commands.rs`.
+- Key files read: `README.md`, `ROADMAP.md`, `docs/{gaps,roadmap,architecture,file-format-parity,target-app-parity,mcp,cli-batch,development,word-count,editing-existing-text,page-display,localization,localization-parity,ui-parity}.md`, `vendor/README.md`, `Cargo.toml`, `apps/pdfcraft/src/{main.rs,single_instance.rs,apple_events.rs}`, `apps/pdfcraft-cli/src/main.rs`, `crates/automation/{README.md,src/tools.rs,src/lib.rs,src/mcp.rs,src/layers.rs,src/forms.rs,src/printing.rs,src/a11y.rs}`, `crates/engine/src/{commands.rs,catalog.rs,compare.rs,export.rs,lib.rs}`, `crates/ui-egui/src/{lib.rs,control.rs,recovery.rs,canvas.rs,compare_ui.rs,panels.rs,files.rs,create_ui.rs,window_state.rs,calc_order_ui.rs,field_table_ui.rs,format_text_ui.rs,sign_ui.rs}`, `crates/{create,crypt,redact,preflight,ocr,a11y,xfdf,measure,edit,organize,sign,forms}/src`, `crates/fonts/build.rs`, `crates/platform/src/staging.rs`, `apps/pdfcraft-web/`, `/Applications/PdfCraft.app/Contents/Info.plist`.
+- Shared libraries consulted: `storytold/craft-libs` (`craft-print`, `craft-quit`, `craft-ui`, `craft-docpath` pins in `Cargo.toml`).
+- Companion files: `evidence.md` (claim → evidence → tier table) and `references/automation-tools.md` (all 175 tool names and titles).
