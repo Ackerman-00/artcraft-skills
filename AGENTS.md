@@ -51,13 +51,47 @@ user to restart their agent session so the skills are discovered.
 ## Windows: driving the GUI apps live
 
 Agents on Windows often spawn processes in a non-interactive window station
-(`CREATE_NO_WINDOW`); the ArtCraft GUI apps (egui/DirectX) exit immediately with code 0
-and no window when launched that way. To edit on screen while the user watches, have the
-**user** launch the app interactively and attach to it over the control channel:
+(`CREATE_NO_WINDOW`); the ArtCraft GUI apps (egui/DirectX) can exit immediately with code 0
+and no window when launched that way. An app that dies before its first frame may also
+record the display adapter as bad and leave it out on later starts — VectorCraft writes
+`%APPDATA%\VectorCraft\logs\graphics-start.json`, FilmCraft keeps a similar start record —
+so the GPU can look "disabled" until that memory is cleared.
+
+**Try the direct launch first.** `CREATE_NO_WINDOW` only hides a console; it does not move
+the process to another window station. An agent running in the user's logged-on session (a
+terminal, an IDE, a desktop app) can start the GUI itself:
 
 ```cmd
 cmd.exe /c start "" "C:\Program Files\<App>\<app>.exe" --control <port>
 ```
+
+If no window appears, the agent is in a non-interactive session — a Windows service /
+session 0, or a runner that sandboxed its window station. Nothing started from that session
+can paint on the user's desktop: use the headless CLI/MCP surface instead, or ask the
+**user** to launch the app interactively. As a last resort, an agent that *is* running as
+the logged-in user can have Task Scheduler launch the app interactively:
+
+```cmd
+schtasks /create /tn "ArtCraft-<App>-<port>" /tr "\"C:\Program Files\<App>\<app>.exe\" --control <port>" /sc once /st <future-time> /it /f
+schtasks /run /tn "ArtCraft-<App>-<port>"
+schtasks /delete /tn "ArtCraft-<App>-<port>" /f
+```
+
+- `/it` has no effect for tasks run as SYSTEM, and the System account has no interactive
+  desktop; from a service, the interactive user has to launch the app.
+- `/sc once` refuses a start time already in the past, so `<future-time>` must be later
+  today (or create the task with `/sc onlogon` and `/run` it immediately).
+- This creates a real scheduled task — an auditable artifact and a known execution
+  primitive. Use a unique task name, keep the default limited run level (never
+  `/rl highest`), delete the task right after it runs, and if endpoint policy blocks
+  `schtasks`, ask the user instead of retrying.
+- The app needs its control channel enabled at launch, with its own authentication (below).
+
+If an earlier background launch did mark the adapter, reset the choice before blaming the
+GPU: close the app, change Preferences › Performance › Graphics Processor (or set
+`WGPU_ADAPTER_NAME` / `WGPU_BACKEND` for one start), or — only when you know the GPU is
+healthy — delete `%APPDATA%\<App>\logs\graphics-start.json` so the next start tries it
+again. Not every app writes that file.
 
 Then connect a TCP socket to `127.0.0.1:<port>` and send one JSON request per line.
 Authentication differs per app — check the app's SKILL.md before connecting:
@@ -65,6 +99,8 @@ Authentication differs per app — check the app's SKILL.md before connecting:
 - **PhotoCraft**: pass `--control-token <64-hex>` (or `--control-token-file <path>`) at launch.
 - **WordCraft**: read the key from `%APPDATA%\<App>\control-key.local-<port>` (mode 0600, deleted on exit).
 - **PdfCraft**: launch with `--control FILE` — the file holds the loopback port and per-launch token.
+- **CADCraft**: every request needs `"token": "<session token>"`, read from `cadcraft-control-<port>.token` (`%LOCALAPPDATA%` on Windows; `$XDG_RUNTIME_DIR`, else `~/.cache` elsewhere) — the app prints the path at startup.
+- **FilmCraft**: the listener only opens when `FILMCRAFT_CONTROL_TOKEN` holds 64 hex characters at launch; every request carries the same `"token"`.
 - **All other apps**: loopback-only, unauthenticated — enable only while in use.
 
 Send UTF-8 **without a BOM**: the control servers treat a BOM-prefixed first line as

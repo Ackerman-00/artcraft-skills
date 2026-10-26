@@ -1,58 +1,133 @@
-# PhotoCraft — evidence table for SKILL.md
+# PhotoCraft — evidence ledger (tag v0.16.0)
 
-App: PhotoCraft · repo `storytold/photocraft` · inspected at tag **v0.12.0**, commit **6a2d027ee2e7ca12afd248544ed2262b0fa078dd** (2026-10-21) · date of inspection 2026-10-22.
-Installed bundle `/Applications/PhotoCraft.app` — its CLI reports `photocraft 0.12.0 (6a2d027ee, 2026-10-21)`; `Contents/Info.plist` `CFBundleShortVersionString` 0.12.0, bundle id `ai.storyteller.photocraft`, min macOS 11.0. The checkout matches the shipped release (the brief warned the Plist version may be stale; this time it agrees — the CLI version remains the authority).
-Method: static reading of the repo (no build, no GUI launch); every row below is a file I opened and read unless marked otherwise. Status: **implemented** = code path exists and is wired; **partial** = exists with named gaps; **claimed** = prose/docs only, not confirmed in code; **not implemented** = absent and documented as such.
+Audit basis: this checkout is tag **`v0.16.0`**, commit **`b1794c6e0608ccfc887213dcf58398977c5cb75e`** ("Release 0.16.0"; the
+clone is shallow and holds exactly this commit, so `v0.12.0…v0.16.0` diffs were unavailable and every delta below was
+re-measured here and compared against the previous skill and the repo's own revision histories). Inspection date
+**2026-10-26**. Installed `/Applications/PhotoCraft.app` = 0.16.0 (`CFBundleShortVersionString`, bundle id
+`ai.storyteller.photocraft`, min macOS 11.0), binary prints `photocraft 0.16.0 (b1794c6e0, 2026-10-25)`; the GUI was
+never launched. No `references/` directory ships — SKILL.md carries the body, this file carries the per-claim evidence.
 
-## Capability claims (20)
+## 1. Capability claims → evidence → tier
 
-| # | Claim in SKILL.md | Evidence (repo-relative) | Status |
+Tier legend: **implemented** = code path exists and is wired into UI/CLI/automation; **partial** = code exists with a
+named gap; **claimed-only** = said in docs/README but absent or contradicted by code.
+
+| # | Claim | Evidence (repo-relative) | Tier |
 |---|---|---|---|
-| 1 | Clean-room Photoshop reimplementation, pure Rust (MIT/Apache-2.0, org `storytold`); native egui/eframe+wgpu; the same code builds for WebAssembly | `README.md:13,254`; `AGENTS.md`; `Cargo.toml` (`wasm-release` profile); `apps/photocraft-web/` | implemented |
-| 2 | Early alpha: ~76% breadth, ~45% "ready for real work", 953 open issues (2026-10-13, measured at 0.6.0); alpha gate passes (six core workflows) | `ROADMAP.md:5-30,77-95`; `docs/roadmap.md` "Alpha gate" | claimed (dated estimates; the progress docs are older than the code) |
-| 3 | 67 tools; Art History Brush the only one of Photoshop's classic 68 missing; README separately claims "15 missing tools" against the full 2026 toolbox | `crates/ui-egui/src/state.rs:141` (`pub const ALL: [Tool; 67]`); `docs/gaps.md` G6 (corrected 2026-10-13); `README.md` IMPORTANT note | implemented / doc conflict flagged |
-| 4 | 16 adjustment-layer commands, now including `colorLookup` (.cube/.3dl/.look) | grep: 16 distinct `layer.newAdjustmentLayer.<suffix>` ids incl. one built from `CMD = "colorLookup"`; `crates/engine/src/adjust_cmds.rs:100-139` (cube/3dl/look parsing), id registered via the shared macro; `README.md` "16 adjustment layers" | implemented |
-| 5 | 10 layer-effect kinds (+ `.shc` contours partial); blend modes PassThrough + 27 Photoshop + 6 Paint.NET | `crates/doc/src/effects.rs:261-292` (`pub enum Effect`); `docs/scorecard.md` FILE-215-15; `crates/color/src/blend.rs:11-43` (counted: 27 non-PassThrough Photoshop modes, `PAINT_NET_MODES = 6`) | implemented (contours partial) |
-| 6 | Layers/groups/clipping/masks (Density+Feather)/fill/adjustment layers, smart objects with smart filters (41 mapped to PSD) and projective placement, alpha channels, Quick Mask, comps, artboards, advanced blending (CPU) | `README.md:191`; `crates/doc/src/`; `docs/scorecard.md` FILE-215-2/4/6/16, `crates/io/src/smart_map.rs` | implemented (FILE-215-3 filter-mask painting, FILE-215-5 row UX partial; advanced blending GPU falls back) |
-| 7 | Type: point/paragraph, manual+optical kerning PSD round trip, variable axes, Warp Text; type on a path **partial** (rigid glyphs; caret no; PSD saves point text); headless `type.editText/hitTest/caret/navigate` | `docs/scorecard.md` TYPE-218-1..9; `crates/engine/src/type_extra_cmds.rs:332-362,699`; `docs/control-protocol.md` type rows, AUTO-219-9 | implemented / partial (path text) |
-| 8 | `.pcraft` native format v1: zip-of-STORE or directory, `manifest.json` + BLAKE3/zstd tiles/blobs + previews; incremental, atomic (temp/fsync/rename), crash-recovery autosaves | `crates/format/src/lib.rs:1-60` (`FORMAT_VERSION = 1` in `manifest.rs:18`), `atomic.rs`, `autosave.rs`; `crates/engine/src/prefs.rs:453,477,1133` (autosave default 10, range 1–240) | implemented |
-| 9 | PSD/PSB read **and** write (layers…smart objects as SoLd+lnk2, smart filters, alpha channels); auto-PSB above 2 GB; optional image previews; re-save is not byte-identical | `crates/io/src/psd_import.rs`, `psd_export.rs`, `crates/psd`; `docs/scorecard.md` FILE-215-1, REL-212-2; `README.md:220` | implemented |
-| 10 | PSD fidelity is the blocking gap (G1): floors 188/256 oracle + 258 round trip (Photoshop), 249/309 + 308 (psd-tools), 148/170 + 169 (io); README measured 307/309 and 169/170; Photoshop-refusal reports #1281/#2469; no third-party reopen test (FILE-216-4) | `crates/io/tests/corpus.rs:151-159` (`pass_floor`/`roundtrip_floor` constants); `README.md:77,220`; `docs/gaps.md` G1; `docs/scorecard.md` File compatibility | partial (G1 blocks beta) |
-| 11 | Flat codecs read+write: PNG 8/16, JPEG, TIFF 8/16/32f+BigTIFF, WebP (lossless + own lossy VP8), GIF, BMP, TGA, ICO, **DDS (new writer: uncompressed/BC1-3 + mips)**, Netpbm, QOI, OpenEXR, HDR, FITS, DPX 8/10/12/16; Cineon read-only; save keeps opened JPEG quality / WebP lossiness | `crates/codecs/README.md` capability matrix + DDS/FITS/DPX/Cineon sections; dispatch `crates/io/src/lib.rs` `export_stages`; `docs/file-format-parity.md` JPEG/WebP rows (#2399) | implemented (Cineon write missing, by design row in `ASYMMETRIC_EXCEPTIONS`) |
-| 12 | Read-only imports: PDN3, Krita `.kra/.krz`, Affinity `.af*` (own `crates/affinity`; preview fallback), SVG, DDS top mip, Cineon, HEIC (`crates/heif`, heic-rs, feature on in releases); import-only save refuses with a naming error | `crates/io/src/lib.rs:1-60` + `export_stages` PDN/Affinity/KRA refusals; `crates/heif/src/lib.rs:1-16`; `crates/affinity/README.md` (via `docs/file-format-parity.md` notes); `docs/file-format-parity.md` "Formats Photoshop doesn't have" | implemented |
-| 13 | Camera raw: DNG (uncompressed/deflate/LJPEG/**lossy-JPEG now decodes**/JPEG XL, CFA+LinearRaw), CR2, TIFF/EP (NEF/ARW/PEF), Nikon compressed NEF, Sony cRAW, RW2, uncompressed ORF/RAF; measured D4/D5100/D90 profiles; `fit_look` per-file colour; CR3 = preview + orientation only | `crates/raw/src/lib.rs:29-37` (decoded list), `:92,219` (CR3 unsupported), `cameras.rs` (via `docs/gaps.md` G14); `docs/file-format-parity.md` Camera raw table (lossy DNG row) | partial (per-variant limits, preview fallback, no .xmp) |
-| 14 | PDF write only: one flattened RGB/Gray/CMYK page with ICC (Save As / Save a Copy / CLI / print / artboards-to-PDF); no PDF import | `crates/io/src/pdf.rs:1-12`; `docs/file-format-parity.md` Photoshop PDF row | partial |
-| 15 | Export As = png/jpg/webp/tif/tga/ico (+ six resample methods, remembered); Save for Web = gif/png8/png24/jpeg/wbmp (+ colour-table edits); Quick Export as PNG | `crates/engine/src/export_preset_cmds.rs:13` (`FORMATS: [&str; 6]`); `crates/engine/src/web_cmds.rs:40-66`; `docs/scorecard.md` FILE-215-18 done; `docs/control-protocol.md` Save-for-Web section | implemented |
-| 16 | Every Photoshop menu item wired — 631/631 live, `FLOOR = 631` — wiring ≠ behaviour | `crates/ui-egui/src/parity.rs:10`; `docs/parity-checklist.md` (generated: 631/631) | implemented (wiring only) |
-| 17 | CLI: 8 subcommands (convert/info/run/batch/droplet/commands/mcp/serve) + `--version`; strict flags (exit 2); new `--dds-compression`/`--dds-mipmaps`; batch plays action sets/`.atn` with `--action`, nested-call support, self-call stop, `{name}/{serial}/{date}` templates | `apps/photocraft-cli/src/lib.rs:14-107` (USAGE/SUBCOMMANDS), `:388-443` (`load_actions_file`), `:497-545` (batch guards); `docs/batch-naming.md`; `crates/engine/src/file_cmds/batch_naming.rs:31` | implemented |
-| 18 | Control channel loopback-only, token auth first frame, 60 s timeout; automation fail-closed list (`file.open/openAs/save/saveAs/saveACopy`, `file.export.saveForWebLegacy`, `pattern.import`, smart-object export/replace/relink, `measurementLog.export`, `edit.colorSettings`, path params, `prefs.set` file-backed sections); desktop additionally refuses `image.mode.*`; embedded smart-object editContents/saveContents/convertToLayers **are** allowed (pathless) | `docs/control-protocol.md` (auth, "Embedded Smart Objects", engine-commands refusal paragraph); `crates/automation/src/workspace.rs` `filesystem_commands_fail_closed` test (exact id list read at v0.12.0) | implemented |
-| 19 | MCP headless or bridged; tools include command_list/run/batch, doc_* (open/new/place/save/export/export_layers/export_data_sets/import_data_sets/inspect/select/close), render_preview, jobs_list/cancel, session_list, ui_* (bridge-only) and `control_call`; serve answers the same methods + `methods` on stdio or loopback port, per-document `index`; background jobs with `wait:false` everywhere | `docs/mcp.md` "Tools and resources"; `docs/control-protocol.md` "MCP bridge" tool table + "Headless server" method table + "Background jobs (#210)"; `crates/automation/src/rpc.rs` | implemented |
-| 20 | No AI/generative features; no native `.8BF`/CEP/UXP host; Wasm plug-in ABI v1 only (wasmi, 32 MiB module, 512 MiB memory, 50M fuel + 4,000/sample, 60 s); Photomerge and classical Remove/Select Subject exist as non-ML substitutes | no `ml` crate under `crates/`; `docs/roadmap.md` M10; `docs/gaps.md` G15/G16, TOOL-213-19; `docs/plugins.md` limits table; `crates/engine/src/photo_cmds.rs:487-909` (`file.automate.photomerge`) | not implemented (AI, native plug-ins, ABI v2) / implemented (Wasm ABI, photomerge, classical substitutes) |
+| 1 | 631/631 Photoshop menu items dispatch a command | `docs/parity-checklist.md:5`; floor `FLOOR: usize = 631` at `crates/ui-egui/src/parity.rs:10` | implemented |
+| 2 | 67 tools in the toolbox; Art History Brush is the only missing classic tool | `crates/ui-egui/src/state.rs:209` `pub const ALL: [Tool; 67]`; `docs/gaps.md` G6 ("Missing (1 of 68)") | implemented |
+| 3 | 16 adjustment-layer kinds, each also a destructive `image.adjustments.*` command | `crates/engine/src/commands.rs:1364` `const ADJ` (16 tuples) → loop at `:1409-1450` pushes 2 specs each | implemented |
+| 4 | 10 layer-effect kinds, several instances per kind | `crates/doc/src/effects.rs:277` `pub enum Effect`; commands via `crates/engine/src/layer_style.rs` `style_cmd!` (10) | implemented |
+| 5 | 34 blend modes (PassThrough + 27 Photoshop + 6 Paint.NET) | `crates/color/src/blend.rs:11-51` (`PAINT_NET_MODES: [BlendMode; 6]` at `:51`) | implemented |
+| 6 | 124 `filter.*` command ids = 63 registered pairwise (`filters.rs` 30 + `filters_ext.rs` 33) + 47 Filter Gallery filters + `filter.filterGallery` + 13 workspace/lifecycle ids | `crates/engine/src/filters.rs:408`, `filters_ext.rs:595`, `gallery_cmds.rs:174` (47 rows in `crates/algo/src/artistic.rs` `gallery!`; its doc comment also says "47 artistic filters"), `crates/engine/src/distort_cmds.rs:30` (`LIQUIFY`), `lens_cmds.rs:25-26` (`WIDE`, `RAW`), `vp_cmds.rs:15` (`VP = "filter.vanishingPoint"`), plus `filter.blurGallery.*` (5), `filter.lastFilter`, `filter.convertForSmartFilters` | implemented |
+| 7 | 54 PSD smart-filter classes map to 49 distinct commands both ways | `crates/io/src/smart_map.rs:141` `struct Known`, first entry `:155`; `grep -c 'Known {'` = 54, unique `command:` values = 49. `docs/file-format-parity.md` PSD row says "53 mapped" (stale by one) | implemented |
+| 8 | 114 Photoshop action-event mappings; nesting to 16 levels | `crates/engine/src/atn_cmds.rs:3405` `const EVENTS` = 56 `ev!` + 14 `adjustment_event!` + 2 `clipping_event!` + 42 bare `Event {`; `crates/engine/src/actions_cmds.rs:191` "action nesting exceeds 16 levels". `docs/gaps.md`/`docs/file-format-parity.md` say 112 (2026-10-12 entry, stale) | implemented |
+| 9 | 16 `actions.*` commands | ids `actions.{list,get,record,stop,play,move,delete,toggle,rename,load,save,insert,dialog,assignSet,setColor,conditional}` in `crates/engine/src/actions_cmds.rs`, `actions_edit_cmds.rs` | implemented |
+| 10 | `.pcraft` = manifest `format_version` 1 + content-addressed zstd tiles/blobs, atomic save | `crates/format/src/manifest.rs:18` `pub const FORMAT_VERSION: u32 = 1`; `crates/format/src/atomic.rs`; `crates/format/src/migrate.rs` | implemented |
+| 11 | 22 codec formats; read-only PCX, XPM, DICOM, IFF; AVIF write-only behind a feature; HEIF read-only behind a feature | `crates/codecs/src/format.rs:7` (`enum Format`), `:73` `ASYMMETRIC_EXCEPTIONS`, `:108` `ALL: [Format; 22]`, `:266-267` Pcx/Xpm `read: true, write: false`; `crates/codecs/README.md` matrix | implemented |
+| 12 | Import-only layered readers: PDN, KRA/KRZ, XCF/XCF.GZ, Affinity, SVG; writable targets refused | `crates/io/src/lib.rs:398-455` (`import_stages`), `:514-586` (`export_stages` refusals for pdn/affinity/kra/xcf); `crates/io/src/xcf.rs`, `kra.rs`, `pdn.rs`, `affinity.rs`, `svg.rs` | implemented |
+| 13 | PSD/PSB read+write with enforced corpus floors 190/256, 249/309, 148/170 (+ round-trip floors) | `crates/io/tests/it/corpus.rs:151` (mixed 148/169), `:155` (psd-tools 249/308), `:159` (photoshop 190/258); `docs/scorecard.md:10` | implemented, fidelity partial (G1) |
+| 14 | Export As = 6 formats; Save for Web = 5 | `crates/engine/src/export_preset_cmds.rs:13` `const FORMATS`; `crates/engine/src/web_cmds.rs:46-50` | implemented |
+| 15 | 8 CLI subcommands, 9 export flags, exit codes 0/1/2 | `apps/photocraft-cli/src/args.rs:31-40` (`enum Command`), `:44-83` (`ExportArgs`), `apps/photocraft-cli/src/lib.rs:41-66` | implemented |
+| 16 | 26 MCP tools + 2 MCP resources | `crates/automation/src/server.rs:610` `#[tool_router]` → 26 `async fn` tool bodies (:612-1016); `crates/automation/src/server/conventions.rs:7-8,63-90` resources `photocraft://document`, `photocraft://commands` | implemented |
+| 17 | 28 control-channel methods, auth-first, 1 MiB request / 60 s reply / 16 connections | `crates/ui-egui/src/control.rs` dispatch (unknown-method arm at `:1345`); `apps/photocraft/src/control_server.rs`; `crates/automation/src/security.rs:15-29`; `docs/control-protocol.md` "Methods" | implemented |
+| 18 | Headless `serve`/`rpc` exposes 19 methods | `crates/automation/src/rpc.rs:42-61` `pub const METHODS` (19 entries), dispatch `:86-190` | implemented |
+| 19 | Automation budgets: 8 MiB reply, 5 MiB PNG, 2048 preview side, 64 M pixels, 256 batch steps | `crates/automation/src/budgets.rs:13-19`; `crates/automation/src/security.rs:21` | implemented |
+| 20 | Wasm plug-in ABI v1: 5 commands, no WASI, 32 MiB module, 512 MiB memory, 50 M fuel + 4 000/sample, 60 s | `crates/plugins/src/runtime.rs:14,45-47`; `crates/engine/src/plugin_cmds.rs:19,273-319`; `docs/plugins.md:41-47` | implemented |
+| 21 | Automation is fail-closed for 14 filesystem commands; desktop also refuses `image.mode.*` | `crates/automation/src/workspace.rs:745` `filesystem_commands_fail_closed` (14 ids) and the `authorize_desktop_engine_command` asserts below it | implemented |
+| 22 | Camera raw: DNG/CR2/NEF/ARW/PEF/RW2, uncompressed ORF/RAF; CR3 preview only | `crates/raw/src/lib.rs:34-41`; `crates/raw/src/cr3.rs:1-5` ("extracts camera JPEGs and orientation, not CRX sensor data"); `docs/file-format-parity.md` Camera raw table (CR3 "detected, unsupported") | partial |
+| 23 | Print through in-process IPP, portal, spooler or PDF; `file.printers` lists queues | `crates/engine/src/print_cmds.rs:15,190,1275`; `crates/ipp`; `docs/printing.md` | implemented |
+| 24 | Video-lite: 7 `timeline.*` commands + `file.export.renderVideo` | `crates/engine/src/timeline_cmds.rs:140`; `crates/engine/src/video_cmds.rs` (`file.export.renderVideo`) | implemented |
+| 25 | In-app update check (once per launch, opt-out, not in Flatpak) | `crates/engine/src/updates_cmds.rs:117`; `docs/scorecard.md` DIST-220-1 partial (landed 2026-10-22, #5485) | partial (no periodic recheck) |
+| 26 | No AI/generative features; no native PS plug-ins (.8BF/CEP/UXP); ABI v2 missing | `docs/scorecard.md` AUTO-219-6/7 marked "missing"; no ONNX runtime or `ml` crate in `Cargo.toml`; `crates/plugins/src/runtime.rs:14` `ABI_VERSION: i32 = 1`; `docs/gaps.md` G15/G16 | not implemented (verified absent) |
+| 27 | Workspaces that are still dialogs: Select and Mask, Content-Aware Fill, Vanishing Point; Path Blur a dialog | `docs/gaps.md` G7; `crates/engine/src/smartselect_cmds.rs`; `crates/engine/src/gallery_cmds.rs` (Blur Gallery) | partial |
+| 28 | Type on a path = rigid glyph placement only | `crates/engine/src/type_extra_cmds.rs` (`type.attachToPath`); `docs/gaps.md` G8 TYPE-218-1 | partial |
 
-## Operational facts used in "How to operate"
+## 2. Automation-surface counts: previous skill (v0.12.0) → this tag (v0.16.0)
 
-| Fact | Evidence |
+Every row was re-measured from this checkout; nothing is copied from the previous skill or from README/docs.
+
+| Surface | Prev skill (0.12.0) | v0.16.0 (measured) | Change / how measured |
+|---|---:|---:|---|
+| CLI subcommands | 8 | **8** | unchanged; `apps/photocraft-cli/src/args.rs:31-40` |
+| CLI export flags | 7 | **9** | +`--tiff-compression none\|lzw\|zip`, +`--jpeg-format baseline\|optimized\|progressive`; also +`--in-place` on `convert`/`run` (`args.rs:44-83`) |
+| CLI completions / man pages | — | **5 shells + per-subcommand man pages** | new surface: `apps/photocraft-cli/examples/man-and-completions.rs`, shipped by the Linux/FreeBSD packaging |
+| MCP tools | 22 enumerated (+`doc_select`/`doc_close` in prose = 24) | **26** | +`doc_replace_smart_object`; `doc_render_preview` counted as its own registry entry; `crates/automation/src/server.rs:612-1016` |
+| MCP resources | not mentioned | **2** | new: `photocraft://document`, `photocraft://commands`; `crates/automation/src/server/conventions.rs:7-8,63-90` |
+| Control-channel methods | 28 | **28** | unchanged (previous list was correct); `crates/ui-egui/src/control.rs` |
+| Headless `serve`/rpc methods | 18 | **19** | +`doc.replaceSmartObject`; `crates/automation/src/rpc.rs:42-61` |
+| Engine command registry | no number (README "500+") | **~854, uncertain** | 822 non-test registration sites (`spec!`/`cmd!`/`filter_cmd!`/`style_cmd!`/`kind_spec!`/`stack_spec!` or a bare `CommandSpec {`, macro bodies and test files excluded) + 32 generated from the 16-entry `ADJ` table. Under-counts `style_specs!`/`gallery_specs!` expansions (each returns a `Vec`), so **uncertain — see `crates/engine/src/commands.rs:538` `build()` and the per-module `specs()` functions**; authoritative live count is `photocraft-cli commands \| wc -l` |
+| Menu items live | 631/631 | **631/631** | unchanged; `crates/ui-egui/src/parity.rs:10`, `docs/parity-checklist.md:5` |
+| Tools | 67 | **67** | unchanged; `crates/ui-egui/src/state.rs:209` |
+| Adjustment-layer commands | 16 (+16 destructive) | **16 (+16)** | unchanged; `crates/engine/src/commands.rs:1364-1450` |
+| Layer effects | 10 | **10** | unchanged; `crates/doc/src/effects.rs:277` |
+| Blend modes | 34 | **34** | unchanged; `crates/color/src/blend.rs:11-51` |
+| `filter.*` commands | not counted | **124** | 30 `filters.rs` + 33 `filters_ext.rs` + 47 Filter Gallery + `filter.filterGallery` + 13 workspace/lifecycle ids; gallery table `crates/algo/src/artistic.rs` |
+| PSD smart-filter classes / commands | "41 filters map both ways" | **54 classes → 49 commands** | `crates/io/src/smart_map.rs` `Known` entries; docs say 53 (stale) |
+| Action event mappings | 92 (prev skill) / 112 (docs) | **114** | `crates/engine/src/atn_cmds.rs:3405` |
+| `actions.*` commands | 9 | **16** | +`load/save/insert/dialog/assignSet/setColor/conditional` |
+| Codec formats | 16 named, no count (DICOM/PCX/IFF listed as unsupported) | **22** | `crates/codecs/src/format.rs:108`; PCX, XPM, DICOM and Amiga IFF are readable now, and **Cineon gained a writer** |
+| Layered importers | PDN, KRA, Affinity, SVG, ORA | **+XCF/.xcf.gz** | `crates/io/src/xcf.rs`, `docs/xcf.md` |
+| Preferences | 171 settings, 24 dead | **177 settings, 20 dead** | `docs/scorecard.md:12,188` (generated by `xtask`) |
+| Plug-in commands / ABI | 5, v1 | **5, v1** | unchanged; `crates/engine/src/plugin_cmds.rs`, `crates/plugins/src/runtime.rs:14` |
+
+## 3. Things that could not be verified (stated as uncertain in SKILL.md)
+
+- **Exact engine command count.** Two table macros expand to several `CommandSpec`s at compile time, and some ids are
+  built through a `const` instead of a literal — `crates/engine/src/magnetic_cmds.rs:20` `CMD = "select.magneticLasso"`,
+  `crates/engine/src/plugin_cmds.rs:19` `RUN = "plugin.run"`, `crates/engine/src/vp_cmds.rs:15` `VP`,
+  `crates/engine/src/distort_cmds.rs:30` `LIQUIFY`, `crates/engine/src/lens_cmds.rs:25-26` `WIDE`/`RAW` — so a static
+  count brackets it at roughly 850. Use `photocraft-cli commands | wc -l` on the installed build. Known sources of
+  uncertainty: `crates/engine/src/type_styles_cmds.rs` (`style_specs!`), `crates/engine/src/gallery_cmds.rs`
+  (`gallery_specs!`), and the const-built ids above.
+- **Open-issue count.** `ROADMAP.md:43` says 953 open (measured 2026-10-13); `docs/gaps.md` G3 says 579 (2026-10-10).
+  Both are checkpoints, not live data — treat as "hundreds", and read GitHub for the current number.
+- **Feature-breadth / readiness percentages.** `ROADMAP.md:20-30` (~76% / ~45%) were measured at 0.6.0 on 2026-10-10 and
+  have not been recomputed; do not present them as 0.16.0 measurements.
+- **PSD oracle set size.** The Photoshop-authored floor is 190 of **256** in `docs/scorecard.md:10` but the round-trip floor
+  column shows 258 files; `crates/io/tests/it/corpus.rs:159` enforces `pass_floor: 190, roundtrip_floor: 258`. Cite the
+  floor, not the total.
+
+## 4. Doc-vs-code drift found at this tag (code wins)
+
+| Doc statement | Code reality |
 |---|---|
-| App options `--control`, `--control-token[-file]`, `--automation-*-root`, `--safe-gpu`, `--new-instance`, `--present-mode`, `--frame-latency`, `--stroke-trace`, `--in-window-menus`, `--`; env equivalents; bad values are usage errors (exit 2) | `apps/photocraft/src/main.rs:3-31,168-198` (usage text read at v0.12.0) |
-| The `.app` bundle contains no CLI (only `Contents/MacOS/PhotoCraft`); macOS CLI ships as `photocraft-cli-<ver>-macos-universal.zip`; Linux deb/rpm install `/usr/bin/photocraft-cli` | `ls /Applications/PhotoCraft.app/Contents/MacOS` (this Mac); `README.md` macOS section; `docs/mcp.md` install section |
-| `photocraft --version` prints `version (short-sha, date)` | `crates/engine/src/build_info.rs:11-40` |
-| Documents are tabs in one window (`window.document.<index>`); second launches on Win/Linux hand files over; `--control`/`--new-instance` start a separate process | `docs/control-protocol.md`; `apps/photocraft/src/main.rs:13-15` |
-| Settings dir `~/Library/Application Support/Photocraft/` (`preferences.json`, `Presets/` incl. `.pcbrushes`+`tips/` and `actions.json`, `ui.ron`, `Recovery/`); `PHOTOCRAFT_CONFIG_DIR`; portable mode `PhotoCraftData/` | `apps/photocraft/src/app_dirs.rs:10-11,82-98,481`; `docs/control-protocol.md` "Preferences" |
-| Autosave default 10 min, `fileHandling.autosaveMinutes` 1–240; recovery entries deleted only on save/close | `crates/engine/src/prefs.rs:453,477,1133`; `crates/format/src/autosave.rs` |
-| Shortcuts `Cmd+F`, `Cmd+J` (`menu_catalog.rs:257`), `Cmd+D` (`:507`), `Cmd+O/S/Shift+S` (`shell_commands.rs:21-23`), `Cmd+Alt+Shift+W` (`:26`), `F5/F6/F7` (`:54-58`); `.kys` import/export incl. Photoshop's live set offer via `edit.keyboardShortcuts` | paths given; `docs/control-protocol.md` `edit.keyboardShortcuts` row |
-| Printing: 4 routes (lp/spooler, in-process IPP `crates/ipp`, Linux portal, PDF file); `file.printers`, `dryRun` | `docs/printing.md` route table; `crates/engine/src/print_cmds.rs:14-15,190-194` |
-| Performance: 60 scenarios — 3 within budget, 22 over/failing (P12 150-layer GPU crash; Content-Aware Scale 954 s vs 3 s), 9 tracked, 22 not run, 4 not measurable; 24 of 171 preferences do nothing (list includes `integrations.control_port`, `raw_defaults.*`) | `docs/scorecard.md` Summary + Performance + prefs audit (generated doc read at v0.12.0) |
-| Smart objects over automation: editContents/saveContents/convertToLayers allowed pathless; export/replace/relink refused | `crates/automation/src/workspace.rs` fail-closed test; `docs/control-protocol.md` "Embedded Smart Objects" |
-| Batch/droplet guards: `--out == --in` refused unless `--in-place` (canonicalized), no overwrite, per-file FAIL lines, shell save/view steps stripped from batched sets | `apps/photocraft-cli/src/lib.rs:441-545` |
-| MCP `command_batch` is not atomic; automation saves never fire script events; `image.duplicate`/`history.newDocument` create safe working copies | `docs/mcp.md`; `docs/control-protocol.md` |
-| Wasm plug-in limits (32 MiB module, 512 MiB memory, 50M fuel + 4,000/sample, 60 s wall clock) | `docs/plugins.md` limits table |
+| `ROADMAP.md:22` "menus 628/628, tools 56/68, formats 13+4 of 31" | 631/631 live (`docs/parity-checklist.md:5`), 67 `Tool::ALL` (`state.rs:209`), 22 codecs + layered formats |
+| `docs/architecture.md:17` and `docs/roadmap.md:53` "~700 commands"; `README.md:230` "500+ commands" | ~854 registration sites (static) — both are floors |
+| `docs/gaps.md` / `docs/file-format-parity.md` "112 `.atn` events" | 114 rows in `EVENTS` |
+| `docs/file-format-parity.md` "ours only" table: Krita `.kra`, GIMP `.xcf` read = **no** | `crates/io/src/kra.rs` / `xcf.rs` import them; `docs/xcf.md` and `docs/kra.md` document the readers |
+| `docs/file-format-parity.md` PSD row "53 smart filters mapped" | 54 `Known` classes / 49 commands in `crates/io/src/smart_map.rs` |
+| `docs/scorecard.md` AUTO-219-2 note "90 Photoshop events" | 114 rows (note is hand-written prose; the scorecard's generated numbers are trustworthy, its notes can lag) |
+| `docs/gaps.md:271` "24 of 171 preferences" vs `:3` change note "25 of 166" | `docs/scorecard.md:12` generated count: 20 of 177 |
 
-## Verification notes and honest gaps
+## 5. Verification commands (read-only, reproduce the counts)
 
-- **Docs vs code drift.** `ROADMAP.md`/`docs/roadmap.md` still carry the 0.6.0-era measurements (menus 628/628, tools 56/68, formats 13+4 of 31, "14 of Photoshop's 68" missing tools in Current focus) that the generated docs supersede (`docs/parity-checklist.md`: 631/631; `crates/ui-egui/src/state.rs`: 67 tools; `docs/gaps.md` G6 corrected 2026-10-13: only Art History Brush missing of the classic 68). `docs/gaps.md` G11 prose says `.atn` maps 112 events; the generated scorecard (AUTO-219-2) says 90; my count of the `EVENTS` table (`atn_cmds.rs:2674` onward, `ev!(` + `Event {` initialisers) is 92. SKILL.md quotes the code-count with the scorecard figure and flags the conflict.
-- **Tool-count discrepancy left visible.** The README IMPORTANT note says "15 missing tools" while gaps.md G6 (2026-10-13) says 1 of 68. These count different baselines (full Photoshop 2026 toolbox vs the classic `.kys` set). SKILL.md states both rather than picking one.
-- **GIF frames.** `docs/file-format-parity.md` GIF row says per-frame delays are not persisted while FILE-215-13 says video-layer frames persist in `.pcraft`. Both can be true (frames persist; delays do not); SKILL.md phrases it that way.
-- **Command registry size.** The README's "500+ commands" is quoted as a README claim, not counted; `crates/engine/src/commands.rs` has 12 literal `CommandSpec`s plus ~60 module `specs()` builders — I did not expand them all.
-- **MCP acceptance task count.** The scorecard contradicts itself (FILE-216-6 "20 MCP tasks" vs AUTO-219-10 "10 workflows"); the test files I read document 10 tasks (`agent_tasks.rs`) + 6 rounding-out tasks 31–36 (`agent_tasks_more.rs`), so SKILL.md cites the files without a total.
-- **Not verified live.** The GUI was not launched and no command was executed; every behavioural claim rests on source and docs. Untested at runtime: actual save/open round trips, control-channel latency, screenshots, autosave timing, DDS writes.
-- **Uncertain / not traced.** Which filters make up the "41 mapped" smart-filter set beyond the named examples (`crates/io/src/smart_map.rs` not read in full); the exact list of Camera Raw descriptor fields mapped to PSD (FILE-215-12 note read, code not); built-in Color Lookup look ids (`adjust_cmds.rs:20` table not enumerated); whether FreeBSD tarballs have ever shipped (DIST-6 partial says the layout is checked but no release run produced one).
+```sh
+git -C <clone> rev-parse HEAD                       # b1794c6e0608ccfc887213dcf58398977c5cb75e
+sed -n '10p' crates/ui-egui/src/parity.rs           # FLOOR: usize = 631
+sed -n '5p' docs/parity-checklist.md                # 631 of 631 menu items live
+sed -n '209p' crates/ui-egui/src/state.rs           # pub const ALL: [Tool; 67]
+sed -n '43,61p' crates/automation/src/rpc.rs | grep -c '"'   # 19 headless METHODS
+sed -n '611,1016p' crates/automation/src/server.rs | grep -c '#\[tool'   # 26 MCP tools
+grep -c 'Known {' crates/io/src/smart_map.rs        # 54 PSD smart-filter classes
+awk '/^const EVENTS: /,/^];/' crates/engine/src/atn_cmds.rs | grep -cE '(ev!|adjustment_event!|clipping_event!|Event \{)'   # 114 action-event rows
+sed -n '108p' crates/codecs/src/format.rs           # pub const ALL: [Format; 22]
+sed -n '18p' crates/format/src/manifest.rs          # pub const FORMAT_VERSION: u32 = 1
+sed -n '31,40p' apps/photocraft-cli/src/args.rs     # 8 CLI subcommands
+photocraft-cli commands | wc -l                     # authoritative engine command count
+```
+
+## 6. Files read for this audit
+
+`README.md`, `ROADMAP.md`, `Cargo.toml`, `AGENTS.md`, `docs/{architecture,control-protocol,mcp,scorecard,gaps,roadmap,parity-checklist,file-format-parity,plugins,printing,batch-naming,ora,xcf,kra,pdn,smart-filters,shape-strokes,hardware-parity,development}.md`,
+`apps/photocraft/src/{launch_args,app_dirs,control_server,single_instance,gpu_startup}.rs`,
+`apps/photocraft-cli/src/{lib,args,document,batch,automation,actions,output}.rs`, `apps/photocraft-cli/examples/man-and-completions.rs`,
+`crates/engine/src/{commands,atn_cmds,actions_cmds,adjust_cmds,filters,filters_ext,gallery_cmds,layer_style,plugin_cmds,print_cmds,photo_cmds,timeline_cmds,video_cmds,export_preset_cmds,web_cmds,prefs,build_info,updates_cmds,kys,adjust_params}.rs`,
+`crates/ui-egui/src/{state,parity,control,menu_catalog}.rs`, `crates/doc/src/{effects,lib}.rs`, `crates/color/src/blend.rs`,
+`crates/algo/src/artistic.rs`, `crates/codecs/src/format.rs`, `crates/codecs/README.md`,
+`crates/io/src/{lib,psd_import,psd_export,xcf,kra,pdn,affinity,ora,tiff_layers,pdf,svg,smart_map}.rs`, `crates/io/tests/it/corpus.rs`,
+`crates/format/src/{manifest,migrate,atomic,autosave}.rs`, `crates/raw/src/{lib,cr3}.rs`, `crates/plugins/src/{runtime,manifest}.rs`,
+`crates/automation/src/{server,server/conventions,rpc,security,budgets,workspace,args,bridge,headless,files}.rs`,
+`/Applications/PhotoCraft.app/Contents/Info.plist` (read only; no GUI launch).
+
+Shared libraries were not cloned: `storytold/craft-libs` is pinned in `Cargo.toml` (`craft-ui` `5c874d51eeb3de70e735c8ce87a59a7dedd47675`, `craft-print` `3d37da389a3618ab9b76109da11416e9ca4ea719`, `craft-docpath` `82a24b006eefa036b43c09a67fb9a3fbd17ffe63`, `craft-jpeg` `6e7f28518dd1cb57e1624bdc269c3c14316b13ae`); no shared-library behaviour is claimed here.
